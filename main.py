@@ -229,7 +229,7 @@ class BlockerApp(QWidget):
         self.ui.circular_timer.set_time(self.total_seconds, current_seconds_float)
 
     def reset_timer(self):
-        """Para e reseta o timer para o valor inicial, mostrando os inputs."""]
+        """Para e reseta o timer para o valor inicial, mostrando os inputs."""
         updated_data = self.save_session_history(float(self.total_seconds))
         self.ui.history_graph.load_history(updated_data)
         self.timer.stop()
