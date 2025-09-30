@@ -22,7 +22,6 @@ def recolor_icon(icon: QIcon, color: QColor) -> QIcon:
     """
     Pega um ícone (QIcon), extrai sua imagem (pixmap) e máscara (forma),
     e retorna um novo ícone com a forma preenchida pela cor desejada.
-    Útil para fazer ícones do sistema combinarem com um tema personalizado.
     """
     pixmap = icon.pixmap(QSize(256, 256))
     mask = pixmap.mask()
@@ -30,11 +29,8 @@ def recolor_icon(icon: QIcon, color: QColor) -> QIcon:
     pixmap.setMask(mask)
     return QIcon(pixmap)
 
-# Marcador para identificar linhas gerenciadas pelo programa no arquivo hosts
 MARKER = "# MANAGED BY PYQT-BLOCKER"
-# IP de redirecionamento para bloquear sites
 REDIRECT_IP = "127.0.0.1"
-# Tema escuro da aplicação em formato CSS
 DARK_THEME = """
 QWidget { background-color: #2b2b2b; color: #f0f0f0; font-family: Segoe UI; font-size: 14px; }
 QWidget#title_bar { background-color: #1e1e1e; }
@@ -64,44 +60,37 @@ class BlockerApp(QWidget):
         """Construtor da classe, configura a aplicação na inicialização."""
         super().__init__()
         
-        # Configurações iniciais da janela e da interface
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.ui = Ui_BlockerApp()
         self.ui.setupUi(self)
         self._setup_title_bar_icons()
         
-        # Propriedades para a lógica da aplicação
         self.old_pos = None
         self.hosts_path = self.get_hosts_path()
         if platform.system() == "Windows":
             self.helper_path = self.get_helper_path()
             self.previously_blocked_exes = set()
         
-        # Lista de botões de navegação para fácil gerenciamento
         self.nav_buttons = [
             self.ui.nav_button_timer, self.ui.nav_button_lista, self.ui.nav_button_rank,
             self.ui.nav_button_estatisticas, self.ui.nav_button_graficos
         ]
         
-        # Configuração do timer principal
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_countdown)
         self.total_seconds = 0
         self.end_time = None
         
-        # Conecta os sinais e carrega o estado inicial
         self.connect_signals()
         self.load_initial_state()
         self.reset_timer()
         self.change_tab(0)
         self.show()
 
-    # --- MÉTODOS DE LIMPEZA ---
-
     def cleanup_all_blocks(self):
         """Remove todos os bloqueios aplicados por esta sessão ao fechar."""
         print(">>> Iniciando limpeza de todas as regras de bloqueio...")
-        self.update_hosts_file([], False)
+        self.update_hosts_file([], False, is_cleanup=True)
         if platform.system() == "Windows":
             for exe in list(self.previously_blocked_exes):
                 self.unblock_executable(exe)
@@ -111,8 +100,6 @@ class BlockerApp(QWidget):
         """Intercepta o evento de fechar a janela para executar a limpeza."""
         self.cleanup_all_blocks()
         event.accept()
-
-    # --- MÉTODOS DE CONFIGURAÇÃO DA INTERFACE ---
 
     def _setup_title_bar_icons(self):
         """Pega os ícones do sistema, os recolore e os aplica aos botões."""
@@ -133,66 +120,50 @@ class BlockerApp(QWidget):
 
     def connect_signals(self):
         """Conecta os sinais (eventos de clique) dos widgets às suas funções."""
-        # Conexões da barra de navegação
         self.ui.nav_button_timer.clicked.connect(lambda: self.change_tab(0))
         self.ui.nav_button_lista.clicked.connect(lambda: self.change_tab(1))
         self.ui.nav_button_rank.clicked.connect(lambda: self.change_tab(2))
         self.ui.nav_button_estatisticas.clicked.connect(lambda: self.change_tab(3))
         self.ui.nav_button_graficos.clicked.connect(lambda: self.change_tab(4))
         
-        # Conexões dos botões da janela
         self.ui.close_button.clicked.connect(self.close)
         self.ui.minimize_button.clicked.connect(self.showMinimized)
         self.ui.maximize_button.clicked.connect(self.toggle_maximize)
         
-        # Conexões dos controles de bloqueio
         self.ui.apply_button.clicked.connect(self.apply_all_changes)
         
-        # Conexões dos controles do timer
         self.ui.start_button.clicked.connect(self.start_timer)
         self.ui.reset_button.clicked.connect(self.reset_timer)
         
-        # Conexões dos controles da lista de URLs
         self.ui.add_url_button.clicked.connect(self.add_url_from_input)
         self.ui.remove_url_button.clicked.connect(self.remove_selected_url)
         self.ui.url_input.returnPressed.connect(self.add_url_from_input)
 
-    # --- MÉTODOS DO GERENCIADOR DE URLS ---
-    
     def add_url_from_input(self):
         """Pega o texto do input, valida, limpa e adiciona à lista visual."""
         url_text = self.ui.url_input.text().strip()
-        if not url_text:
-            return
+        if not url_text: return
 
-        if not url_text.startswith(('http://', 'https://')):
-            url_text = 'http://' + url_text
+        if not url_text.startswith(('http://', 'https://')): url_text = 'http://' + url_text
         try:
             domain = urlparse(url_text).netloc
-            if domain.startswith('www.'):
-                domain = domain[4:]
+            if domain.startswith('www.'): domain = domain[4:]
             
             if domain:
                 items = [self.ui.website_list_widget.item(i).text() for i in range(self.ui.website_list_widget.count())]
                 if domain not in items:
                     self.ui.website_list_widget.addItem(domain)
                     self.ui.url_input.clear()
-                else:
-                    self.ui.status_label.setText("Status: Domínio já está na lista.")
-            else:
-                self.ui.status_label.setText("Status: URL inválida.")
-        except Exception as e:
-            self.ui.status_label.setText(f"Status: Erro ao processar URL - {e}")
+                else: self.ui.status_label.setText("Status: Domínio já está na lista.")
+            else: self.ui.status_label.setText("Status: URL inválida.")
+        except Exception as e: self.ui.status_label.setText(f"Status: Erro ao processar URL - {e}")
 
     def remove_selected_url(self):
         """Remove o item atualmente selecionado da lista de URLs."""
         list_items = self.ui.website_list_widget.selectedItems()
-        if not list_items:
-            return
+        if not list_items: return
         for item in list_items:
             self.ui.website_list_widget.takeItem(self.ui.website_list_widget.row(item))
-
-    # --- MÉTODOS DO TIMER ---
 
     def start_timer(self):
         """Inicia o temporizador com o tempo definido nos campos de entrada."""
@@ -203,7 +174,7 @@ class BlockerApp(QWidget):
         
         if self.total_seconds > 0:
             self.end_time = QDateTime.currentDateTime().addSecs(self.total_seconds)
-            self.timer.start(16)  # Atualiza a cada 16ms para uma animação fluida
+            self.timer.start(16)
             self.ui.start_button.setEnabled(False)
             self.ui.circular_timer.set_inputs_visible(False)
 
@@ -234,8 +205,6 @@ class BlockerApp(QWidget):
         self.ui.start_button.setEnabled(True)
         self.ui.circular_timer.set_inputs_visible(True)
 
-    # --- MÉTODOS DE NAVEGAÇÃO E LÓGICA DE BLOQUEIO ---
-
     def change_tab(self, index):
         """Muda a aba visível e atualiza o estilo dos botões de navegação."""
         self.ui.tabs.setCurrentIndex(index)
@@ -260,7 +229,7 @@ class BlockerApp(QWidget):
         if platform.system() == "Windows":
             self.ui.app_list_edit.setText("")
 
-    def update_hosts_file(self, blacklist, is_enabled):
+    def update_hosts_file(self, blacklist, is_enabled, is_cleanup=False):
         """Atualiza o arquivo hosts com a lista de URLs a serem bloqueadas."""
         try:
             with open(self.hosts_path, 'r') as f:
@@ -274,7 +243,7 @@ class BlockerApp(QWidget):
             with open(self.hosts_path, 'w') as f:
                 f.writelines(lines)
             
-            if is_enabled or blacklist:
+            if not is_cleanup:
                 self.ui.status_label.setText("Status: Lista de bloqueio atualizada!")
                 self.ui.status_label.setStyleSheet("color: green;")
                 self.flush_dns()
@@ -327,7 +296,18 @@ class BlockerApp(QWidget):
             if not isinstance(e, FileNotFoundError):
                 print(f"Error unblocking {exe_name}: {e}")
 
-    # --- MÉTODOS DE SISTEMA E JANELA ---
+    # --- INÍCIO DA MODIFICAÇÃO: FUNÇÃO flush_dns ATUALIZADA ---
+    def flush_dns(self):
+        """Limpa o cache de DNS do sistema operacional."""
+        os_name = platform.system()
+        if os_name == "Windows":
+            os.system("ipconfig /flushdns")
+        elif os_name == "Linux":
+            # Comando comum para sistemas que usam systemd-resolved (como Ubuntu)
+            print(">>> Limpando cache de DNS do Linux...")
+            os.system("sudo systemd-resolve --flush-caches")
+            print(">>> Cache de DNS limpo.")
+    # --- FIM DA MODIFICAÇÃO ---
 
     def get_hosts_path(self):
         """Retorna o caminho do arquivo hosts dependendo do SO."""
@@ -336,11 +316,6 @@ class BlockerApp(QWidget):
     def get_helper_path(self):
         """Retorna o caminho absoluto para o script auxiliar de bloqueio."""
         return os.path.abspath(os.path.join(os.path.dirname(__file__), 'blocker_helper.pyw'))
-
-    def flush_dns(self):
-        """Limpa o cache de DNS do sistema (apenas Windows)."""
-        if platform.system() == "Windows":
-            os.system("ipconfig /flushdns")
 
     def toggle_maximize(self):
         """Alterna entre janela maximizada e normal."""
