@@ -452,7 +452,7 @@ class BlockerApp(QWidget):
             
             print(">>> Listas de bloqueio carregadas.")
         except Exception as e:
-            print(f"Erro ao carregar listas de configuração: {e}")    
+            print(f"Erro ao carregar listas de configuração: {e}")
     
     def save_session_history(self, session_duration_seconds):
         """Reads, updates, and saves the session history to a JSON file."""
