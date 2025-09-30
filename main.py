@@ -2,7 +2,7 @@
 import sys
 import os
 import platform
-from PyQt6.QtWidgets import QApplication, QWidget, QStyle
+from PyQt6.QtWidgets import QApplication, QWidget, QStyle, QLabel
 from PyQt6.QtCore import Qt, QPoint, QSize
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
 
@@ -11,24 +11,13 @@ if platform.system() == "Windows":
 
 from gui import Ui_BlockerApp
 
-# --- FUNÇÃO ATUALIZADA para recolorir ícones com MÁSCARA ---
 def recolor_icon(icon: QIcon, color: QColor) -> QIcon:
-    """Pega um ícone do sistema e retorna uma nova versão na cor desejada usando uma máscara."""
-    # Pega o pixmap (a imagem) do ícone em um tamanho padrão
     pixmap = icon.pixmap(QSize(256, 256))
-    
-    # Extrai a máscara (a forma) do ícone original
     mask = pixmap.mask()
-    
-    # Preenche a imagem original inteira com a cor desejada
     pixmap.fill(color)
-    
-    # Aplica a máscara de volta, recortando a forma do ícone na cor sólida
     pixmap.setMask(mask)
-    
     return QIcon(pixmap)
 
-# ... (Constantes e Stylesheet inalterados) ...
 MARKER = "# MANAGED BY PYQT-BLOCKER"
 REDIRECT_IP = "127.0.0.1"
 DARK_THEME = """
@@ -37,6 +26,18 @@ QWidget {
     font-family: Segoe UI; font-size: 14px;
 }
 QWidget#title_bar { background-color: #1e1e1e; }
+QWidget#nav_bar { background-color: #3c3c3c; border-bottom: 1px solid #555; }
+
+/* Estilo dos botões de navegação */
+QPushButton#nav_button {
+    background-color: transparent; border: none; padding: 10px;
+    font-size: 15px; font-weight: bold; color: #a9a9a9;
+}
+QPushButton#nav_button:hover { background-color: #4f4f4f; }
+QPushButton#nav_button[active="true"] {
+    color: #ffffff; border-bottom: 2px solid #0078d7;
+}
+
 QLabel#title_label { font-size: 16px; font-weight: bold; padding-left: 5px; }
 QPushButton {
     background-color: #555555; border: 1px solid #777777;
@@ -48,12 +49,11 @@ QTextEdit {
     border-radius: 3px; font-family: Consolas, monospaced;
 }
 QPushButton#minimize_button, QPushButton#maximize_button, QPushButton#close_button {
-    background-color: transparent; border: none;
-    padding: 2px;
+    background-color: transparent; border: none; padding: 2px;
 }
 QPushButton#minimize_button:hover, QPushButton#maximize_button:hover { background-color: #555555; }
 QPushButton#close_button:hover { background-color: #e81123; }
-QTabWidget::pane { border: 1px solid #555; }
+QTabWidget::pane { border: none; }
 QTabBar::tab {
     background: #2b2b2b; padding: 8px 15px;
     border: 1px solid #555; border-bottom: none;
@@ -72,30 +72,32 @@ class BlockerApp(QWidget):
         
         self.old_pos = None
         self.hosts_path = self.get_hosts_path()
-        self.helper_path = self.get_helper_path()
-        self.previously_blocked_exes = set()
+        if platform.system() == "Windows":
+            self.helper_path = self.get_helper_path()
+            self.previously_blocked_exes = set()
+        
+        # --- INÍCIO DA MODIFICAÇÃO: LISTA DE 5 BOTÕES ---
+        self.nav_buttons = [
+            self.ui.nav_button_timer,
+            self.ui.nav_button_lista,
+            self.ui.nav_button_rank,
+            self.ui.nav_button_estatisticas,
+            self.ui.nav_button_graficos
+        ]
+        # --- FIM DA MODIFICAÇÃO ---
         
         self.connect_signals()
         self.load_initial_state()
+        self.change_tab(0)
         self.show()
 
     def _setup_title_bar_icons(self):
-        """Pega os ícones do sistema, os recolore para branco e os aplica."""
         style = self.style()
-        
-        minimize_icon = style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton)
-        maximize_icon = style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton)
-        close_icon = style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton)
-
         icon_color = QColor("white")
-
-        white_minimize_icon = recolor_icon(minimize_icon, icon_color)
-        white_maximize_icon = recolor_icon(maximize_icon, icon_color)
-        white_close_icon = recolor_icon(close_icon, icon_color)
         
-        self.ui.minimize_button.setIcon(white_minimize_icon)
-        self.ui.maximize_button.setIcon(white_maximize_icon)
-        self.ui.close_button.setIcon(white_close_icon)
+        self.ui.minimize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton), icon_color))
+        self.ui.maximize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton), icon_color))
+        self.ui.close_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton), icon_color))
         
         self.ui.minimize_button.setFixedSize(32, 32)
         self.ui.maximize_button.setFixedSize(32, 32)
@@ -104,13 +106,30 @@ class BlockerApp(QWidget):
         self.ui.maximize_button.setIconSize(QSize(16, 16))
         self.ui.close_button.setIconSize(QSize(16, 16))
 
-    # --- O resto do arquivo permanece o mesmo de antes ---
     def connect_signals(self):
         self.apply_button.clicked.connect(self.apply_all_changes)
+        
+        # --- INÍCIO DA MODIFICAÇÃO: CONEXÃO DOS 5 BOTÕES ---
+        self.ui.nav_button_timer.clicked.connect(lambda: self.change_tab(0))
+        self.ui.nav_button_lista.clicked.connect(lambda: self.change_tab(1))
+        self.ui.nav_button_rank.clicked.connect(lambda: self.change_tab(2))
+        self.ui.nav_button_estatisticas.clicked.connect(lambda: self.change_tab(3))
+        self.ui.nav_button_graficos.clicked.connect(lambda: self.change_tab(4))
+        # --- FIM DA MODIFICAÇÃO ---
+
+        # Conexões dos botões da janela
         self.ui.close_button.clicked.connect(self.close)
         self.ui.minimize_button.clicked.connect(self.showMinimized)
         self.ui.maximize_button.clicked.connect(self.toggle_maximize)
 
+    def change_tab(self, index):
+        """Muda a aba visível e atualiza o estilo dos botões de navegação."""
+        self.ui.tabs.setCurrentIndex(index)
+        for i, button in enumerate(self.nav_buttons):
+            button.setProperty("active", i == index)
+            button.style().polish(button)
+
+    # --- O resto do arquivo (lógica de bloqueio) permanece o mesmo ---
     def apply_all_changes(self):
         is_enabled = self.enable_checkbox.isChecked()
         self.update_hosts_file(self.website_list_edit.toPlainText().split('\n'), is_enabled)
@@ -119,8 +138,7 @@ class BlockerApp(QWidget):
 
     def load_initial_state(self):
         try:
-            with open(self.hosts_path, 'r') as f:
-                lines = f.readlines()
+            with open(self.hosts_path, 'r') as f: lines = f.readlines()
             blocked_sites, is_enabled = [], False
             for line in lines:
                 if MARKER in line:
@@ -136,12 +154,10 @@ class BlockerApp(QWidget):
 
     def update_hosts_file(self, blacklist, is_enabled):
         try:
-            with open(self.hosts_path, 'r') as f:
-                lines = [line for line in f if MARKER not in line]
+            with open(self.hosts_path, 'r') as f: lines = [line for line in f if MARKER not in line]
             if is_enabled:
                 for site in blacklist:
-                    if site.strip():
-                        lines.append(f"{REDIRECT_IP}\t{site.strip()}\t{MARKER}\n")
+                    if site.strip(): lines.append(f"{REDIRECT_IP}\t{site.strip()}\t{MARKER}\n")
             with open(self.hosts_path, 'w') as f: f.writelines(lines)
             self.status_label.setText("Status: Hosts file updated!")
             self.status_label.setStyleSheet("color: green;")
@@ -161,8 +177,7 @@ class BlockerApp(QWidget):
                         exe_name = winreg.EnumKey(base_key, i)
                         with winreg.OpenKey(base_key, exe_name) as sub_key:
                             debugger_val, _ = winreg.QueryValueEx(sub_key, "Debugger")
-                            if self.helper_path in debugger_val:
-                                blocked_exes.add(exe_name)
+                            if self.helper_path in debugger_val: blocked_exes.add(exe_name)
                         i += 1
                     except OSError: break
             self.app_list_edit.setText('\n'.join(sorted(list(blocked_exes))))
@@ -200,10 +215,8 @@ class BlockerApp(QWidget):
             winreg.DeleteKey(winreg.HKEY_LOCAL_MACHINE, key_path)
         except Exception as e: print(f"Error unblocking {exe_name}: {e}")
 
-    def get_hosts_path(self):
-        return r"C:\Windows\System32\drivers\etc\hosts" if platform.system() == "Windows" else "/etc/hosts"
-    def get_helper_path(self):
-        return os.path.abspath(os.path.join(os.path.dirname(__file__), 'blocker_helper.pyw'))
+    def get_hosts_path(self): return r"C:\Windows\System32\drivers\etc\hosts" if platform.system() == "Windows" else "/etc/hosts"
+    def get_helper_path(self): return os.path.abspath(os.path.join(os.path.dirname(__file__), 'blocker_helper.pyw'))
     def flush_dns(self):
         if platform.system() == "Windows": os.system("ipconfig /flushdns")
     def toggle_maximize(self):
@@ -212,12 +225,11 @@ class BlockerApp(QWidget):
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and self.ui.title_bar.underMouse(): self.old_pos = event.globalPosition().toPoint()
     def mouseMoveEvent(self, event):
-        if self.old_pos:
-            delta = QPoint(event.globalPosition().toPoint() - self.old_pos); self.move(self.x() + delta.x(), self.y() + delta.y()); self.old_pos = event.globalPosition().toPoint()
+        if self.old_pos: delta = QPoint(event.globalPosition().toPoint() - self.old_pos); self.move(self.x() + delta.x(), self.y() + delta.y()); self.old_pos = event.globalPosition().toPoint()
     def mouseReleaseEvent(self, event): self.old_pos = None
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     app.setStyleSheet(DARK_THEME)
     ex = BlockerApp()
-    sys.exit(app.exec()) # <--- ESTA LINHA ESTÁ FALTANDO
+    sys.exit(app.exec())
