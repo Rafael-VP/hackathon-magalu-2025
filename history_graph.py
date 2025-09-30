@@ -1,7 +1,7 @@
 # history_graph.py
 from PyQt6.QtWidgets import QWidget
 from PyQt6.QtGui import QPainter, QColor
-from PyQt6.QtCore import QRect, QDate, Qt
+from PyQt6.QtCore import Qt
 from datetime import datetime, timedelta
 
 SQUARE_SIZE = 15
