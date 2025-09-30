@@ -57,30 +57,20 @@ class Ui_BlockerApp(object):
         title_bar_layout.addWidget(self.title_label); title_bar_layout.addStretch(); title_bar_layout.addWidget(self.minimize_button); title_bar_layout.addWidget(self.maximize_button); title_bar_layout.addWidget(self.close_button)
         self.main_layout.addWidget(self.title_bar)
         
-        # --- Barra de Navegação ---
         self.nav_bar = QWidget(); self.nav_bar.setObjectName("nav_bar"); self.nav_bar.setFixedHeight(50)
         nav_layout = QHBoxLayout(self.nav_bar); nav_layout.setContentsMargins(15, 0, 15, 0); nav_layout.setSpacing(10)
-        
         self.nav_button_timer = QPushButton("Timer"); self.nav_button_timer.setObjectName("nav_button")
         self.nav_button_lista = QPushButton("Lista"); self.nav_button_lista.setObjectName("nav_button")
-        # --- BOTÕES RESTAURADOS ---
         self.nav_button_rank = QPushButton("Rank"); self.nav_button_rank.setObjectName("nav_button")
         self.nav_button_estatisticas = QPushButton("Estatísticas"); self.nav_button_estatisticas.setObjectName("nav_button")
         self.nav_button_graficos = QPushButton("Gráficos"); self.nav_button_graficos.setObjectName("nav_button")
-        
-        nav_layout.addWidget(self.nav_button_timer)
-        nav_layout.addWidget(self.nav_button_lista)
-        nav_layout.addWidget(self.nav_button_rank)
-        nav_layout.addWidget(self.nav_button_estatisticas)
-        nav_layout.addWidget(self.nav_button_graficos)
-        nav_layout.addStretch()
+        nav_layout.addWidget(self.nav_button_timer); nav_layout.addWidget(self.nav_button_lista); nav_layout.addWidget(self.nav_button_rank); nav_layout.addWidget(self.nav_button_estatisticas); nav_layout.addWidget(self.nav_button_graficos); nav_layout.addStretch()
         self.main_layout.addWidget(self.nav_bar)
         
         content_widget = QWidget(); content_layout = QVBoxLayout(content_widget); content_layout.setContentsMargins(15, 0, 15, 15)
         self.main_layout.addWidget(content_widget)
         self.tabs = QTabWidget(); self.tabs.tabBar().setVisible(False)
         
-        # Página 1: Timer
         timer_page = QWidget(); timer_page_layout = QVBoxLayout(timer_page)
         self.circular_timer = CircularTimerWidget()
         timer_button_layout = QHBoxLayout()
@@ -90,14 +80,15 @@ class Ui_BlockerApp(object):
         timer_page_layout.addWidget(self.circular_timer); timer_page_layout.addLayout(timer_button_layout)
         self.tabs.addTab(timer_page, "Timer")
 
-        # Página 2: Lista
-        app_tab = QWidget(); app_layout = QVBoxLayout(app_tab); app_layout.setContentsMargins(0, 10, 0, 0)
-        self.app_list_edit = QTextEdit(); app_layout.addWidget(QLabel('Enter .exe files to block:')); app_layout.addWidget(self.app_list_edit)
+        list_page = QWidget(); list_page_layout = QVBoxLayout(list_page); list_page_layout.setContentsMargins(0, 10, 0, 0)
+        self.website_list_edit = QTextEdit() # Adicionado de volta
+        list_page_layout.addWidget(QLabel('Enter websites to block:'))
+        list_page_layout.addWidget(self.website_list_edit)
+        self.app_list_edit = QTextEdit(); list_page_layout.addWidget(QLabel('Enter .exe files to block:')); list_page_layout.addWidget(self.app_list_edit)
         self.enable_checkbox = QCheckBox('Enable Blockers'); self.apply_button = QPushButton('Apply Blocking Changes')
-        app_layout.addWidget(self.enable_checkbox); app_layout.addWidget(self.apply_button)
-        self.tabs.addTab(app_tab, "Lista")
+        list_page_layout.addWidget(self.enable_checkbox); list_page_layout.addWidget(self.apply_button)
+        self.tabs.addTab(list_page, "Lista")
         
-        # --- PÁGINAS RESTAURADAS ---
         rank_tab = QWidget(); rank_tab.setLayout(QVBoxLayout()); rank_tab.layout().addWidget(QLabel("Página de Rank"))
         self.tabs.addTab(rank_tab, "Rank")
         stats_tab = QWidget(); stats_tab.setLayout(QVBoxLayout()); stats_tab.layout().addWidget(QLabel("Página de Estatísticas"))
@@ -108,16 +99,4 @@ class Ui_BlockerApp(object):
         content_layout.addWidget(self.tabs)
         self.status_label = QLabel('Status: Ready'); content_layout.addWidget(self.status_label)
         
-        # Anexa widgets para a lógica
-        main_window.tabs = self.tabs
-        main_window.nav_button_timer = self.nav_button_timer; main_window.nav_button_lista = self.nav_button_lista
-        # --- ANEXOS RESTAURADOS ---
-        main_window.nav_button_rank = self.nav_button_rank
-        main_window.nav_button_estatisticas = self.nav_button_estatisticas
-        main_window.nav_button_graficos = self.nav_button_graficos
-        
-        main_window.circular_timer = self.circular_timer
-        main_window.start_button = self.start_button; main_window.reset_button = self.reset_button
-        main_window.app_list_edit = self.app_list_edit
-        main_window.enable_checkbox = self.enable_checkbox; main_window.apply_button = self.apply_button
-        main_window.status_label = self.status_label
+        # O bloco que anexava widgets à main_window foi removido para manter a consistência.
