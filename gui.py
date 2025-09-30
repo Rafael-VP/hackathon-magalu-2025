@@ -2,7 +2,7 @@
 import requests
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit,
-    QPushButton, QCheckBox, QApplication, QTabWidget, QStyle,
+    QPushButton, QCheckBox, QApplication, QTabWidget,
     QLineEdit, QListWidget, QDialog, QFormLayout
 )
 from PyQt6.QtGui import QScreen, QPainter, QColor, QPen, QFont, QIntValidator
@@ -90,8 +90,8 @@ class RegisterDialog(QDialog):
         form_layout.addRow("Confirmar Senha:", self.confirm_password_edit)
         button_layout = QHBoxLayout()
         button_layout.addStretch()
-        button_layout.addWidget(self.cancel_button)
         button_layout.addWidget(self.register_button)
+        button_layout.addWidget(self.cancel_button)
         main_layout = QVBoxLayout(self)
         main_layout.addLayout(form_layout)
         main_layout.addWidget(self.status_label)

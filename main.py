@@ -1,16 +1,14 @@
 # main.py
 import sys
 import os
-import requests
 import platform
 import json
 import atexit
 from datetime import datetime
 from urllib.parse import urlparse
-from PyQt6.QtWidgets import (QApplication, QWidget, QStyle, QDialog, QLineEdit, 
-                             QPushButton, QLabel, QFormLayout, QHBoxLayout, QVBoxLayout)
+from PyQt6.QtWidgets import QApplication, QWidget, QStyle, QDialog
 from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime, QStandardPaths
-from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
+from PyQt6.QtGui import QIcon, QColor
 
 
 # Importa o módulo do registro do Windows apenas se estiver no Windows
