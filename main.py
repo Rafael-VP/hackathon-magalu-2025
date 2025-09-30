@@ -1,11 +1,13 @@
+# main.py
+# This file contains the application's logic and connects it to the UI.
+
 import sys
 import os
 import platform
-from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QLabel, QTextEdit,
-    QPushButton, QCheckBox, QStyleFactory
-)
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QApplication, QWidget
+
+# --- IMPORT THE UI FROM THE OTHER FILE ---
+from gui import Ui_BlockerApp
 
 # --- Constants ---
 MARKER = "# MANAGED BY PYQT-BLOCKER"
@@ -14,51 +16,21 @@ REDIRECT_IP = "127.0.0.1"
 class BlockerApp(QWidget):
     def __init__(self):
         super().__init__()
+        
+        # --- Create an instance of the UI and set it up ---
+        self.ui = Ui_BlockerApp()
+        self.ui.setupUi(self) # 'self' is the main_window QWidget
+
+        # --- Set up the rest of the application ---
         self.hosts_path = self.get_hosts_path()
-        self.initUI()
+        self.connect_signals()
         self.load_initial_state()
-
-    def initUI(self):
-        """Sets up the application's GUI."""
-        self.setWindowTitle('PyQt Website Blocker')
-        self.setGeometry(300, 300, 400, 300)
         
-        # Use a consistent style
-        QApplication.setStyle(QStyleFactory.create('Fusion'))
-
-        # Layout
-        layout = QVBoxLayout()
-
-        # --- Widgets ---
-        self.title_label = QLabel('Website Blocker')
-        self.title_label.setStyleSheet("font-size: 16px; font-weight: bold;")
-
-        self.info_label = QLabel('Enter websites to block (one per line):')
-
-        self.blacklist_edit = QTextEdit()
-
-        self.enable_checkbox = QCheckBox('Enable Blocker')
-        self.enable_checkbox.setChecked(True)
-
-        self.apply_button = QPushButton('Apply Changes')
-
-        self.status_label = QLabel('Status: Ready')
-        self.status_label.setStyleSheet("color: grey;")
-
-        # --- Add widgets to layout ---
-        layout.addWidget(self.title_label)
-        layout.addWidget(self.info_label)
-        layout.addWidget(self.blacklist_edit)
-        layout.addWidget(self.enable_checkbox)
-        layout.addWidget(self.apply_button)
-        layout.addWidget(self.status_label)
-        
-        self.setLayout(layout)
-
-        # --- Connect Signals ---
-        self.apply_button.clicked.connect(self.apply_changes)
-
         self.show()
+
+    def connect_signals(self):
+        """Connect widget signals (like button clicks) to functions."""
+        self.apply_button.clicked.connect(self.apply_changes)
 
     def get_hosts_path(self):
         """Gets the correct hosts file path for the current OS."""
@@ -77,7 +49,7 @@ class BlockerApp(QWidget):
             is_enabled = False
             for line in lines:
                 if MARKER in line:
-                    is_enabled = True # If we find any of our lines, the blocker is on
+                    is_enabled = True
                     parts = line.split()
                     if len(parts) >= 2:
                         blocked_sites.append(parts[1])
@@ -97,18 +69,15 @@ class BlockerApp(QWidget):
         is_enabled = self.enable_checkbox.isChecked()
         
         try:
-            # Read all lines, filtering out our old managed lines
             with open(self.hosts_path, 'r') as f:
                 lines = [line for line in f if MARKER not in line]
 
-            # If the blocker is enabled, add the new lines
             if is_enabled:
                 for site in blacklist:
-                    if site.strip():  # Ensure site is not an empty string
+                    if site.strip():
                         new_line = f"{REDIRECT_IP}\t{site.strip()}\t{MARKER}\n"
                         lines.append(new_line)
 
-            # Write the modified content back to the file
             with open(self.hosts_path, 'w') as f:
                 f.writelines(lines)
             
@@ -138,6 +107,7 @@ class BlockerApp(QWidget):
             os.system(command)
             print("DNS cache flushed.")
 
+# This part remains the same
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = BlockerApp()
