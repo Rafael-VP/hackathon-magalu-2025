@@ -2,7 +2,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit,
     QPushButton, QCheckBox, QApplication, QTabWidget, QStyle,
-    QLineEdit
+    QLineEdit, QListWidget
 )
 from PyQt6.QtGui import QScreen, QPainter, QColor, QPen, QFont, QIntValidator
 from PyQt6.QtCore import Qt, QRectF
@@ -199,15 +199,36 @@ class Ui_BlockerApp(object):
         list_page = QWidget()
         list_page_layout = QVBoxLayout(list_page)
         list_page_layout.setContentsMargins(0, 10, 0, 0)
+        list_page_layout.setSpacing(10)
         
-        self.website_list_edit = QTextEdit() 
-        list_page_layout.addWidget(QLabel('Enter websites to block:'))
-        list_page_layout.addWidget(self.website_list_edit)
-        
-        self.app_list_edit = QTextEdit()
+        # --- MODIFICAÇÃO: Início do novo sistema de gerenciamento de URLs ---
+        list_page_layout.addWidget(QLabel('Enter URL to block:'))
+        add_url_layout = QHBoxLayout()
+        self.url_input = QLineEdit()
+        self.url_input.setPlaceholderText("Ex: google.com")
+        self.add_url_button = QPushButton("Adicionar")
+        add_url_layout.addWidget(self.url_input)
+        add_url_layout.addWidget(self.add_url_button)
+        list_page_layout.addLayout(add_url_layout)
+
+        self.website_list_widget = QListWidget()
+        self.remove_url_button = QPushButton("Remover Selecionado")
+        list_page_layout.addWidget(self.website_list_widget)
+        list_page_layout.addWidget(self.remove_url_button)
+
+        # Divisor visual para separar as duas listas
+        line = QWidget()
+        line.setFixedHeight(1)
+        line.setStyleSheet("background-color: #555;")
+        list_page_layout.addWidget(line)
+        # --- FIM da modificação do sistema de URLs ---
+
+        # Lista de Aplicativos (inalterada)
         list_page_layout.addWidget(QLabel('Enter .exe files to block:'))
+        self.app_list_edit = QTextEdit()
         list_page_layout.addWidget(self.app_list_edit)
         
+        # Controles de bloqueio (Enable/Apply)
         self.enable_checkbox = QCheckBox('Enable Blockers')
         self.apply_button = QPushButton('Apply Blocking Changes')
         list_page_layout.addWidget(self.enable_checkbox)
@@ -244,7 +265,13 @@ class Ui_BlockerApp(object):
         main_window.circular_timer = self.circular_timer
         main_window.start_button = self.start_button
         main_window.reset_button = self.reset_button
-        main_window.website_list_edit = self.website_list_edit
+        
+        # Anexa os novos widgets da lista de URLs
+        main_window.url_input = self.url_input
+        main_window.add_url_button = self.add_url_button
+        main_window.website_list_widget = self.website_list_widget
+        main_window.remove_url_button = self.remove_url_button
+        
         main_window.app_list_edit = self.app_list_edit
         main_window.enable_checkbox = self.enable_checkbox
         main_window.apply_button = self.apply_button
