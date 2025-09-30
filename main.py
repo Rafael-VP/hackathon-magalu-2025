@@ -34,6 +34,8 @@ def recolor_icon(icon: QIcon, color: QColor) -> QIcon:
     return QIcon(pixmap)
 
 MARKER = "# MANAGED BY PYQT-BLOCKER"
+SERVER_BASE_URL = "http://201.23.72.236:5000"
+
 # IP de redirecionamento para bloquear sites
 REDIRECT_IP = "127.0.0.1"
 DARK_THEME = """
