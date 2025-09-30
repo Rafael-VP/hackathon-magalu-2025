@@ -2,9 +2,13 @@
 import sys
 import os
 import platform
+import json
+from datetime import datetime
+from PyQt6.QtCore import QStandardPaths
 from PyQt6.QtWidgets import QApplication, QWidget, QStyle
 from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
+
 
 if platform.system() == "Windows":
     import winreg
@@ -60,7 +64,7 @@ class BlockerApp(QWidget):
             self.ui.nav_button_lista,
             self.ui.nav_button_rank,
             self.ui.nav_button_estatisticas,
-            self.ui.nav_button_graficos
+            #self.ui.nav_button_graficos
         ]
         
         self.timer = QTimer(self)
@@ -88,7 +92,7 @@ class BlockerApp(QWidget):
         # --- SINAIS RESTAURADOS ---
         self.ui.nav_button_rank.clicked.connect(lambda: self.change_tab(2))
         self.ui.nav_button_estatisticas.clicked.connect(lambda: self.change_tab(3))
-        self.ui.nav_button_graficos.clicked.connect(lambda: self.change_tab(4))
+        #self.ui.nav_button_graficos.clicked.connect(lambda: self.change_tab(4))
         
         # Sinais da janela
         self.ui.close_button.clicked.connect(self.close)
@@ -105,6 +109,7 @@ class BlockerApp(QWidget):
         minutes = int(self.circular_timer.minute_input.text() or 0)
         seconds = int(self.circular_timer.second_input.text() or 0)
         self.total_seconds = (hours * 3600) + (minutes * 60) + seconds
+        self.var = self.total_seconds
         if self.total_seconds > 0:
             self.end_time = QDateTime.currentDateTime().addSecs(self.total_seconds)
             self.timer.start(16)
@@ -114,13 +119,15 @@ class BlockerApp(QWidget):
     def update_countdown(self):
         now = QDateTime.currentDateTime()
         remaining_msecs = now.msecsTo(self.end_time)
-        if remaining_msecs <= 0:
-            self.timer.stop(); self.status_label.setText("Status: Timer finished!"); QApplication.beep(); self.reset_timer()
-            return
         current_seconds_float = remaining_msecs / 1000.0
+        if remaining_msecs <= 0:
+            self.status_label.setText("Status: Timer finished!"); QApplication.beep(); self.reset_timer()
+            return
         self.circular_timer.set_time(self.total_seconds, current_seconds_float)
 
     def reset_timer(self):
+        updated_data = self.save_session_history(float(self.total_seconds))
+        self.ui.history_graph.load_history(updated_data)
         self.timer.stop()
         h = int(self.circular_timer.hour_input.text() or 0); m = int(self.circular_timer.minute_input.text() or 0); s = int(self.circular_timer.second_input.text() or 0)
         self.total_seconds = (h * 3600) + (m * 60) + s
@@ -136,8 +143,47 @@ class BlockerApp(QWidget):
     def apply_all_changes(self):
         is_enabled = self.enable_checkbox.isChecked()
         if platform.system() == "Windows": self.update_exe_blocks(self.app_list_edit.toPlainText().split('\n'), is_enabled)
+
     def load_initial_state(self):
         if platform.system() == "Windows": self.load_exe_block_state()
+
+        app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
+        history_file = os.path.join(app_data_path, "blocker_history.json")
+        print(app_data_path)
+        try:
+            with open(history_file, 'r') as f:
+                history_data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            history_data = {}
+        
+        self.ui.history_graph.load_history(history_data)
+    
+    def save_session_history(self, session_duration_seconds):
+        """Reads, updates, and saves the session history to a JSON file."""
+        app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
+        history_file = os.path.join(app_data_path, "blocker_history.json")
+        
+        # Get today's date as a string
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        
+        # Read existing data
+        try:
+            with open(history_file, 'r') as f:
+                data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            data = {}
+
+        # Update data for today
+        data[today_str] = data.get(today_str, 0) + session_duration_seconds
+        
+        # Write updated data back to the file
+        os.makedirs(app_data_path, exist_ok=True)
+        with open(history_file, 'w') as f:
+            json.dump(data, f)
+        
+        return data # Return the updated data to refresh the graph
+
+
     def update_exe_blocks(self, blacklist, is_enabled):
         try:
             current_blacklist = {exe.strip() for exe in blacklist if exe.strip()}
@@ -153,6 +199,8 @@ class BlockerApp(QWidget):
             self.status_label.setText("Status: App block list updated!"); self.status_label.setStyleSheet("color: green;")
         except Exception as e:
             self.status_label.setText(f"App Block Error: {e}. Run as Admin."); self.status_label.setStyleSheet("color: red;")
+
+
     def load_exe_block_state(self):
         key_path = r"Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"; blocked_exes = set()
         try:
@@ -170,12 +218,16 @@ class BlockerApp(QWidget):
             self.previously_blocked_exes = blocked_exes
         except FileNotFoundError: pass
         except Exception as e: print(f"Could not load EXE state: {e}")
+
+
     def block_executable(self, exe_name):
         try:
             key_path = fr"Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\{exe_name}"
             with winreg.CreateKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:
                 debugger_command = f'"{sys.executable}" "{self.helper_path}"'; winreg.SetValueEx(key, "Debugger", 0, winreg.REG_SZ, debugger_command)
         except Exception as e: print(f"Error blocking {exe_name}: {e}")
+
+
     def unblock_executable(self, exe_name):
         try:
             key_path = fr"Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\{exe_name}"
