@@ -6,6 +6,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QScreen, QPainter, QColor, QPen, QFont, QIntValidator
 from PyQt6.QtCore import Qt, QRectF
+from history_graph import HistoryGraph
+
 
 class CircularTimerWidget(QWidget):
     def __init__(self, parent=None):
@@ -159,14 +161,12 @@ class Ui_BlockerApp(object):
         self.nav_button_rank.setObjectName("nav_button")
         self.nav_button_estatisticas = QPushButton("Estatísticas")
         self.nav_button_estatisticas.setObjectName("nav_button")
-        self.nav_button_graficos = QPushButton("Gráficos")
-        self.nav_button_graficos.setObjectName("nav_button")
         
         nav_layout.addWidget(self.nav_button_timer)
         nav_layout.addWidget(self.nav_button_lista)
         nav_layout.addWidget(self.nav_button_rank)
         nav_layout.addWidget(self.nav_button_estatisticas)
-        nav_layout.addWidget(self.nav_button_graficos)
+        #nav_layout.addWidget(self.nav_button_graficos)
         nav_layout.addStretch()
         self.main_layout.addWidget(self.nav_bar)
         
@@ -196,6 +196,12 @@ class Ui_BlockerApp(object):
         self.tabs.addTab(timer_page, "Timer")
 
         # Página 2: Lista
+        app_tab = QWidget(); app_layout = QVBoxLayout(app_tab); app_layout.setContentsMargins(0, 10, 0, 0)
+        self.app_list_edit = QTextEdit(); app_layout.addWidget(QLabel('Enter .exe files to block:')); app_layout.addWidget(self.app_list_edit)
+        self.enable_checkbox = QCheckBox('Enable Blockers'); self.apply_button = QPushButton('Apply Blocking Changes')
+        app_layout.addWidget(self.enable_checkbox); app_layout.addWidget(self.apply_button)
+        self.tabs.addTab(app_tab, "Lista")
+        
         list_page = QWidget()
         list_page_layout = QVBoxLayout(list_page)
         list_page_layout.setContentsMargins(0, 10, 0, 0)
@@ -234,7 +240,14 @@ class Ui_BlockerApp(object):
         list_page_layout.addWidget(self.enable_checkbox)
         list_page_layout.addWidget(self.apply_button)
         self.tabs.addTab(list_page, "Lista")
-        
+
+        # Página 3: Stats
+        history_tab = QWidget()
+        history_layout = QVBoxLayout(history_tab)
+        self.history_graph = HistoryGraph() # Create an instance of our custom widget
+        history_layout.addWidget(self.history_graph)
+        self.tabs.addTab(history_tab, "History") 
+
         # Outras Páginas
         rank_tab = QWidget()
         rank_tab.setLayout(QVBoxLayout())
@@ -246,11 +259,6 @@ class Ui_BlockerApp(object):
         stats_tab.layout().addWidget(QLabel("Página de Estatísticas"))
         self.tabs.addTab(stats_tab, "Estatísticas")
         
-        charts_tab = QWidget()
-        charts_tab.setLayout(QVBoxLayout())
-        charts_tab.layout().addWidget(QLabel("Página de Gráficos"))
-        self.tabs.addTab(charts_tab, "Gráficos")
-        
         content_layout.addWidget(self.tabs)
         self.status_label = QLabel('Status: Ready')
         content_layout.addWidget(self.status_label)
@@ -261,7 +269,7 @@ class Ui_BlockerApp(object):
         main_window.nav_button_lista = self.nav_button_lista
         main_window.nav_button_rank = self.nav_button_rank
         main_window.nav_button_estatisticas = self.nav_button_estatisticas
-        main_window.nav_button_graficos = self.nav_button_graficos
+        #main_window.nav_button_graficos = self.nav_button_graficos
         main_window.circular_timer = self.circular_timer
         main_window.start_button = self.start_button
         main_window.reset_button = self.reset_button

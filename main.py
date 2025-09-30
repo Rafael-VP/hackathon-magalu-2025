@@ -1,13 +1,18 @@
 # main.py
 import sys
 import os
+import requests
 import platform
+import json
 import atexit
+from datetime import datetime
+from PyQt6.QtCore import QStandardPaths
 from urllib.parse import urlparse
-
-from PyQt6.QtWidgets import QApplication, QWidget, QStyle
+from PyQt6.QtWidgets import (QApplication, QWidget, QStyle, QDialog, QLineEdit, 
+                             QPushButton, QLabel, QFormLayout, QHBoxLayout, QVBoxLayout)
 from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime
-from PyQt6.QtGui import QIcon, QPainter, QColor
+from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
+
 
 # Importa o módulo do registro do Windows apenas se estiver no Windows
 if platform.system() == "Windows":
@@ -30,6 +35,7 @@ def recolor_icon(icon: QIcon, color: QColor) -> QIcon:
     return QIcon(pixmap)
 
 MARKER = "# MANAGED BY PYQT-BLOCKER"
+# IP de redirecionamento para bloquear sites
 REDIRECT_IP = "127.0.0.1"
 DARK_THEME = """
 QWidget { background-color: #2b2b2b; color: #f0f0f0; font-family: Segoe UI; font-size: 14px; }
@@ -53,6 +59,129 @@ QTabWidget::pane { border: none; }
 QTabBar { qproperty-drawBase: 0; }
 """
 
+class LoginDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Login")
+        self.setModal(True)
+        self.username_edit = QLineEdit()
+        self.password_edit = QLineEdit()
+        self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.create_user_button = QPushButton("Criar Novo Usuário")
+        self.login_button = QPushButton("Entrar")
+        self.cancel_button = QPushButton("Cancelar")
+        self.error_label = QLabel("")
+        self.error_label.setStyleSheet("color: #ff5555;")
+        form_layout = QFormLayout()
+        form_layout.addRow("Usuário:", self.username_edit)
+        form_layout.addRow("Senha:", self.password_edit)
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.create_user_button)
+        button_layout.addStretch()
+        button_layout.addWidget(self.cancel_button)
+        button_layout.addWidget(self.login_button)
+        main_layout = QVBoxLayout(self)
+        main_layout.addLayout(form_layout)
+        main_layout.addWidget(self.error_label)
+        main_layout.addLayout(button_layout)
+        self.create_user_button.clicked.connect(self.show_register_dialog) 
+        self.login_button.clicked.connect(self.handle_login)
+        self.cancel_button.clicked.connect(self.reject)
+
+    def show_register_dialog(self):
+        register_dialog = RegisterDialog(self)
+        register_dialog.exec()
+
+    def handle_login(self):
+        username = self.username_edit.text()
+        password = self.password_edit.text()
+        server_url = f"{SERVER_BASE_URL}/login"
+        payload = {'username': username, 'password': password}
+
+        try:
+            self.login_button.setEnabled(False)
+            self.error_label.setText("Conectando...")
+            QApplication.processEvents() # Garante que a UI atualize
+            response = requests.post(server_url, json=payload, timeout=10)
+            if response.status_code == 200:
+                self.accept()
+            elif response.status_code == 401:
+                self.error_label.setText("Usuário ou senha inválidos.")
+            else:
+                self.error_label.setText(f"Erro no servidor: {response.status_code}")
+        except requests.exceptions.ConnectionError:
+            self.error_label.setText("Erro de conexão com o servidor.")
+        except requests.exceptions.Timeout:
+            self.error_label.setText("Erro: A conexão demorou para responder.")
+        finally:
+            self.login_button.setEnabled(True)
+
+class RegisterDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Criar Novo Usuário")
+        self.setModal(True)
+        self.setMinimumWidth(350)
+        self.username_edit = QLineEdit()
+        self.password_edit = QLineEdit()
+        self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.confirm_password_edit = QLineEdit()
+        self.confirm_password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.register_button = QPushButton("Registrar")
+        self.cancel_button = QPushButton("Cancelar")
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet("color: #ff5555;")
+        form_layout = QFormLayout()
+        form_layout.addRow("Usuário:", self.username_edit)
+        form_layout.addRow("Senha:", self.password_edit)
+        form_layout.addRow("Confirmar Senha:", self.confirm_password_edit)
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        button_layout.addWidget(self.cancel_button)
+        button_layout.addWidget(self.register_button)
+        main_layout = QVBoxLayout(self)
+        main_layout.addLayout(form_layout)
+        main_layout.addWidget(self.status_label)
+        main_layout.addLayout(button_layout)
+        self.register_button.clicked.connect(self.handle_register)
+        self.cancel_button.clicked.connect(self.reject)
+
+    def handle_register(self):
+        username = self.username_edit.text()
+        password = self.password_edit.text()
+        confirm_password = self.confirm_password_edit.text()
+
+        if not username or not password:
+            self.status_label.setText("Usuário e senha não podem estar vazios.")
+            return
+        if password != confirm_password:
+            self.status_label.setText("As senhas não coincidem.")
+            return
+
+        server_url = f"{SERVER_BASE_URL}/register"
+        payload = {'username': username, 'password': password}
+
+        try:
+            self.register_button.setEnabled(False)
+            self.status_label.setText("Registrando...")
+            QApplication.processEvents() # Garante que a UI atualize
+            response = requests.post(server_url, json=payload, timeout=10)
+            if response.status_code == 201:
+                self.status_label.setStyleSheet("color: #55ff7f;")
+                self.status_label.setText("Usuário criado! Você já pode fazer o login.")
+                QTimer.singleShot(2000, self.accept)
+            elif response.status_code == 409:
+                self.status_label.setStyleSheet("color: #ff5555;")
+                self.status_label.setText("Este nome de usuário já existe.")
+            else:
+                self.status_label.setStyleSheet("color: #ff5555;")
+                self.status_label.setText(f"Erro no servidor: {response.status_code}")
+        except requests.exceptions.RequestException:
+            self.status_label.setStyleSheet("color: #ff5555;")
+            self.status_label.setText("Erro de conexão com o servidor.")
+        finally:
+            self.register_button.setEnabled(True)
+            
 # --- CLASSE PRINCIPAL DA APLICAÇÃO ---
 
 class BlockerApp(QWidget):
@@ -72,8 +201,11 @@ class BlockerApp(QWidget):
             self.previously_blocked_exes = set()
         
         self.nav_buttons = [
-            self.ui.nav_button_timer, self.ui.nav_button_lista, self.ui.nav_button_rank,
-            self.ui.nav_button_estatisticas, self.ui.nav_button_graficos
+            self.ui.nav_button_timer,
+            self.ui.nav_button_lista,
+            self.ui.nav_button_rank,
+            self.ui.nav_button_estatisticas,
+            #self.ui.nav_button_graficos
         ]
         
         self.timer = QTimer(self)
@@ -85,13 +217,14 @@ class BlockerApp(QWidget):
         self.load_initial_state()
         self.reset_timer()
         self.change_tab(0)
-        self.show()
+        # Removido o self.show() daqui para ser chamado no bloco __main__
 
     def cleanup_all_blocks(self):
         """Remove todos os bloqueios aplicados por esta sessão ao fechar."""
         print(">>> Iniciando limpeza de todas as regras de bloqueio...")
         self.update_hosts_file([], False, is_cleanup=True)
         if platform.system() == "Windows":
+            # Usamos uma cópia da lista para poder modificar o set original
             for exe in list(self.previously_blocked_exes):
                 self.unblock_executable(exe)
         print(">>> Limpeza concluída.")
@@ -124,7 +257,7 @@ class BlockerApp(QWidget):
         self.ui.nav_button_lista.clicked.connect(lambda: self.change_tab(1))
         self.ui.nav_button_rank.clicked.connect(lambda: self.change_tab(2))
         self.ui.nav_button_estatisticas.clicked.connect(lambda: self.change_tab(3))
-        self.ui.nav_button_graficos.clicked.connect(lambda: self.change_tab(4))
+        #self.ui.nav_button_graficos.clicked.connect(lambda: self.change_tab(4))
         
         self.ui.close_button.clicked.connect(self.close)
         self.ui.minimize_button.clicked.connect(self.showMinimized)
@@ -195,6 +328,8 @@ class BlockerApp(QWidget):
 
     def reset_timer(self):
         """Para e reseta o timer para o valor inicial, mostrando os inputs."""
+        updated_data = self.save_session_history(float(self.total_seconds))
+        self.ui.history_graph.load_history(updated_data)
         self.timer.stop()
         h = int(self.ui.circular_timer.hour_input.text() or 0)
         m = int(self.ui.circular_timer.minute_input.text() or 0)
@@ -228,6 +363,44 @@ class BlockerApp(QWidget):
         self.ui.website_list_widget.clear()
         if platform.system() == "Windows":
             self.ui.app_list_edit.setText("")
+            self.load_exe_block_state()
+
+
+        app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
+        history_file = os.path.join(app_data_path, "blocker_history.json")
+        print(app_data_path)
+        try:
+            with open(history_file, 'r') as f:
+                history_data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            history_data = {}
+        
+        self.ui.history_graph.load_history(history_data)
+    
+    def save_session_history(self, session_duration_seconds):
+        """Reads, updates, and saves the session history to a JSON file."""
+        app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
+        history_file = os.path.join(app_data_path, "blocker_history.json")
+        
+        # Get today's date as a string
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        
+        # Read existing data
+        try:
+            with open(history_file, 'r') as f:
+                data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            data = {}
+
+        # Update data for today
+        data[today_str] = data.get(today_str, 0) + session_duration_seconds
+        
+        # Write updated data back to the file
+        os.makedirs(app_data_path, exist_ok=True)
+        with open(history_file, 'w') as f:
+            json.dump(data, f)
+        
+        return data # Return the updated data to refresh the graph
 
     def update_hosts_file(self, blacklist, is_enabled, is_cleanup=False):
         """Atualiza o arquivo hosts com a lista de URLs a serem bloqueadas."""
@@ -277,6 +450,25 @@ class BlockerApp(QWidget):
             self.ui.status_label.setText(f"App Block Error: {e}. Run as Admin.")
             self.ui.status_label.setStyleSheet("color: red;")
 
+    def load_exe_block_state(self):
+        key_path = r"Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"; blocked_exes = set()
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as base_key:
+                i = 0
+                while True:
+                    try:
+                        exe_name = winreg.EnumKey(base_key, i)
+                        with winreg.OpenKey(base_key, exe_name) as sub_key:
+                            debugger_val, _ = winreg.QueryValueEx(sub_key, "Debugger")
+                            if self.helper_path in debugger_val: blocked_exes.add(exe_name)
+                        i += 1
+                    except OSError: break
+            self.app_list_edit.setText('\n'.join(sorted(list(blocked_exes))))
+            self.previously_blocked_exes = blocked_exes
+        except FileNotFoundError: pass
+        except Exception as e: print(f"Could not load EXE state: {e}")
+
+
     def block_executable(self, exe_name):
         """Cria uma chave no Registro para interceptar a execução de um .exe."""
         try:
@@ -287,11 +479,14 @@ class BlockerApp(QWidget):
         except Exception as e:
             print(f"Error blocking {exe_name}: {e}")
 
+
     def unblock_executable(self, exe_name):
         """Remove a chave do Registro que bloqueia a execução de um .exe."""
         try:
             key_path = fr"Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\{exe_name}"
             winreg.DeleteKey(winreg.HKEY_LOCAL_MACHINE, key_path)
+            # Remove from previously_blocked_exes if it exists
+            self.previously_blocked_exes.discard(exe_name)
         except Exception as e:
             if not isinstance(e, FileNotFoundError):
                 print(f"Error unblocking {exe_name}: {e}")
@@ -345,6 +540,24 @@ class BlockerApp(QWidget):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     app.setStyleSheet(DARK_THEME)
+
+    # 1. Cria e executa a janela de login primeiro
+    login_dialog = LoginDialog()
+    
+    # login_dialog.exec() pausa o código aqui até que o diálogo seja fechado
+    # e retorna se foi aceito (login OK) ou rejeitado (cancelado).
+    if login_dialog.exec() == QDialog.DialogCode.Accepted:
+        # 2. Se o login foi bem-sucedido, cria e mostra a janela principal
+        main_app = BlockerApp()
+        
+        # Registra a função de limpeza para ser chamada na saída do programa.
+        atexit.register(main_app.cleanup_all_blocks)
+        
+        main_app.show()
+        sys.exit(app.exec())
+    else:
+        # 3. Se o login foi cancelado ou falhou, o programa simplesmente termina
+        sys.exit(0)
     ex = BlockerApp()
     # Registra a função de limpeza para ser chamada ao sair
     atexit.register(ex.cleanup_all_blocks)
