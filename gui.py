@@ -248,7 +248,7 @@ class Ui_BlockerApp(object):
         main_window.nav_button_lista = self.nav_button_lista
         main_window.nav_button_rank = self.nav_button_rank
         main_window.nav_button_estatisticas = self.nav_button_estatisticas
-        main_window.nav_button_graficos = self.nav_button_graficos
+        #main_window.nav_button_graficos = self.nav_button_graficos
         main_window.circular_timer = self.circular_timer
         main_window.start_button = self.start_button
         main_window.reset_button = self.reset_button
