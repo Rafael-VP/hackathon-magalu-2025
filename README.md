@@ -1,6 +1,9 @@
-# PyQt System Blocker
+# hourClass
 
-Este projeto foi desenvolvido para o **Hackathon Magalu 2025**. É uma aplicação de desktop focada em produtividade, construída em Python com a biblioteca PyQt6. A ferramenta foi projetada para ajudar os usuários a manter o foco, evitando distrações digitais através de um timer, bloqueio de sites/aplicativos e análise do histórico de uso. Ademais, o sistema da Magalu Cloud foi utilizado de uma maneira criativa, pensada na produtividade, permitindo os usuários a sincronizarem seus dados, exortando a cooperação e atenção para tarefas importantes.
+O hourClass foi desenvolvido para o **Hackathon Magalu 2025**. É uma aplicação de desktop focada em produtividade, construída em Python com a biblioteca PyQt6. A ferramenta foi projetada para ajudar os usuários a manter o foco, evitando distrações digitais através de um timer, bloqueio de sites/aplicativos e análise do histórico de uso. Ademais, o sistema da Magalu Cloud foi utilizado de uma maneira criativa, pensada na produtividade, permitindo os usuários a sincronizarem seus dados, exortando a cooperação e atenção para tarefas importantes.
+
+## Sobre o nome
+* O nome hourClass é um trocadilho com a palavra "hourglass", que significa ampulheta em inglês. Visto que a principal funcionalidade do programa é reservar tempo para atividades como estudos e trabalho, a ampulheta se torna um símbolo muito adequado para relacionar ao projeto. Além disso, com a integração feita com a Magalu Cloud, somos capazes de trabalhar em conjunto com outros usuários, fazendo cada sessão de estudos ser "our class", ou seja, nossa aula!
 
 ## Funcionalidades
 

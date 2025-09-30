@@ -33,6 +33,9 @@ def recolor_icon(icon: QIcon, color: QColor) -> QIcon:
 
 MARKER = "# MANAGED BY PYQT-BLOCKER"
 REDIRECT_IP = "127.0.0.1"
+WEBSITE_CONFIG_FILE = "blocked_websites.json"
+APP_CONFIG_FILE = "blocked_apps.txt"
+# Tema escuro da aplicação em formato CSS
 DARK_THEME = """
 QWidget { background-color: #2b2b2b; color: #f0f0f0; font-family: Segoe UI; font-size: 14px; }
 QWidget#title_bar { background-color: #1e1e1e; }
@@ -213,9 +216,10 @@ class BlockerApp(QWidget):
         remaining_msecs = now.msecsTo(self.end_time)
 
         if remaining_msecs <= 0:
-            if hasattr(self.ui, 'history_graph'):
-                updated_data = self.save_session_history(self.total_seconds)
-                self.ui.history_graph.load_history(updated_data)
+            # Envia a duração total do timer para o servidor quando o tempo acaba.
+            self.send_block_time_to_server(self.total_seconds)
+            updated_data = self.save_session_history(self.total_seconds)
+            self.ui.history_graph.load_history(updated_data)
             self.timer.stop()
             self.ui.status_label.setText("Status: Timer finished! Sites unblocked.")
             QApplication.beep()
@@ -249,38 +253,81 @@ class BlockerApp(QWidget):
         for i, button in enumerate(self.nav_buttons):
             button.setProperty("active", i == index)
             button.style().polish(button)
-
+            
+    ### MODIFICADO: apply_all_changes agora também salva as listas ###
     def apply_all_changes(self):
-        """Applies changes from both the website and application block lists."""
         is_enabled = self.ui.enable_checkbox.isChecked()
         website_list = [self.ui.website_list_widget.item(i).text() for i in range(self.ui.website_list_widget.count())]
         self.update_hosts_file(website_list, is_enabled)
 
         if platform.system() == "Windows":
-            app_list = self.ui.app_list_edit.toPlainText().split('\n')
-            self.update_exe_blocks(app_list, is_enabled)
+             self.update_exe_blocks(self.ui.app_list_edit.toPlainText().split('\n'), is_enabled)
+        
+        # Salva as listas nos arquivos de configuração após aplicar
+        self.save_lists_to_files()
 
+    ### MODIFICADO: load_initial_state agora carrega as listas salvas ###
     def load_initial_state(self):
-        """Cleans previous blocks and resets the interface."""
         self.cleanup_all_blocks()
-        self.ui.website_list_widget.clear()
-        if platform.system() == "Windows":
-            self.ui.app_list_edit.setText("")
-            self.load_exe_block_state()
+        self.load_lists_from_files() # Carrega as listas salvas para a UI
+        self.ui.status_label.setText("Status: Pronto. Listas anteriores carregadas.")
 
         app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
         history_file = os.path.join(app_data_path, "blocker_history.json")
-        
-        history_data = {}
         try:
-            with open(history_file, 'r') as f:
-                history_data = json.load(f)
+            with open(history_file, 'r') as f: history_data = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
-            pass
-        
-        if hasattr(self.ui, 'history_graph'):
-            self.ui.history_graph.load_history(history_data)
+            history_data = {}
+        self.ui.history_graph.load_history(history_data)
+    ### NOVAS FUNÇÕES PARA SALVAR E CARREGAR LISTAS ###
+    def get_config_path(self, filename):
+        """Retorna o caminho completo para um arquivo de configuração na pasta AppData."""
+        app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
+        # Cria o diretório se ele não existir
+        os.makedirs(app_data_path, exist_ok=True)
+        return os.path.join(app_data_path, filename)
 
+    def save_lists_to_files(self):
+        """Salva as listas de bloqueio em arquivos na pasta AppData."""
+        try:
+            # Salva a lista de websites (JSON, pois vem de um QListWidget)
+            websites_path = self.get_config_path(WEBSITE_CONFIG_FILE)
+            website_list = [self.ui.website_list_widget.item(i).text() for i in range(self.ui.website_list_widget.count())]
+            with open(websites_path, 'w') as f:
+                json.dump(website_list, f)
+
+            # Salva a lista de apps (TXT, pois vem de um QTextEdit)
+            if platform.system() == "Windows":
+                apps_path = self.get_config_path(APP_CONFIG_FILE)
+                with open(apps_path, 'w') as f:
+                    f.write(self.ui.app_list_edit.toPlainText())
+            
+            print(">>> Listas de bloqueio salvas.")
+        except Exception as e:
+            print(f"Erro ao salvar listas de configuração: {e}")
+
+    def load_lists_from_files(self):
+        """Carrega as listas de bloqueio dos arquivos na pasta AppData."""
+        try:
+            # Carrega a lista de websites
+            websites_path = self.get_config_path(WEBSITE_CONFIG_FILE)
+            if os.path.exists(websites_path):
+                with open(websites_path, 'r') as f:
+                    website_list = json.load(f)
+                    self.ui.website_list_widget.clear()
+                    self.ui.website_list_widget.addItems(website_list)
+
+            # Carrega a lista de apps
+            if platform.system() == "Windows":
+                apps_path = self.get_config_path(APP_CONFIG_FILE)
+                if os.path.exists(apps_path):
+                    with open(apps_path, 'r') as f:
+                        self.ui.app_list_edit.setText(f.read())
+            
+            print(">>> Listas de bloqueio carregadas.")
+        except Exception as e:
+            print(f"Erro ao carregar listas de configuração: {e}")
+    
     def save_session_history(self, session_duration_seconds):
         """Reads, updates, and saves the session history to a JSON file."""
         app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
@@ -447,8 +494,24 @@ class BlockerApp(QWidget):
         """Finalizes the window drag when the mouse is released."""
         self.old_pos = None
 
-# --- APPLICATION ENTRY POINT ---
+    def send_block_time_to_server(self, duration_seconds):
+        """Envia a duração da sessão de bloqueio para o servidor."""
+        if not hasattr(self, 'logged_in_user') or not self.logged_in_user:
+            return # Não faz nada se não houver usuário logado
 
+        server_url = f"{SERVER_BASE_URL}/add_time"
+        payload = {
+            'username': self.logged_in_user,
+            'seconds': duration_seconds
+        }
+
+        try:
+            requests.post(server_url, json=payload, timeout=10)
+            print(f">>> Tempo de bloqueio ({duration_seconds}s) enviado para o servidor para o usuário {self.logged_in_user}.")
+        except requests.exceptions.RequestException as e:
+            print(f"*** ERRO ao enviar tempo para o servidor: {e}")
+
+# --- PONTO DE ENTRADA DA APLICAÇÃO ---
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     app.setStyleSheet(DARK_THEME)
