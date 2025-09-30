@@ -6,11 +6,10 @@ import platform
 import json
 import atexit
 from datetime import datetime
-from PyQt6.QtCore import QStandardPaths
 from urllib.parse import urlparse
 from PyQt6.QtWidgets import (QApplication, QWidget, QStyle, QDialog, QLineEdit, 
                              QPushButton, QLabel, QFormLayout, QHBoxLayout, QVBoxLayout)
-from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime
+from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime, QStandardPaths
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
 
 
@@ -346,6 +345,8 @@ class BlockerApp(QWidget):
         remaining_msecs = now.msecsTo(self.end_time)
         
         if remaining_msecs <= 0:
+            updated_data = self.save_session_history(self.total_seconds)
+            self.ui.history_graph.load_history(updated_data)
             self.timer.stop()
             self.ui.status_label.setText("Status: Timer finalizado!")
             QApplication.beep()
@@ -354,11 +355,11 @@ class BlockerApp(QWidget):
             
         current_seconds_float = remaining_msecs / 1000.0
         self.ui.circular_timer.set_time(self.total_seconds, current_seconds_float)
+        
 
     def reset_timer(self):
         """Para e reseta o timer para o valor inicial, mostrando os inputs."""
-        updated_data = self.save_session_history(float(self.total_seconds))
-        self.ui.history_graph.load_history(updated_data)
+
         self.timer.stop()
         h = int(self.ui.circular_timer.hour_input.text() or 0)
         m = int(self.ui.circular_timer.minute_input.text() or 0)
