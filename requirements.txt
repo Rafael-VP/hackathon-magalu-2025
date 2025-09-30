@@ -1,0 +1,10 @@
+certifi==2025.8.3
+charset-normalizer==3.4.3
+docopt==0.6.2
+idna==3.10
+PyQt6==6.9.1
+PyQt6-Qt6==6.9.2
+PyQt6_sip==13.10.2
+requests==2.32.5
+urllib3==2.5.0
+yarg==0.1.10
