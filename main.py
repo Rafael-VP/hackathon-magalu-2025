@@ -3,11 +3,12 @@ import sys
 import os
 import platform
 import json
+import atexit
 from datetime import datetime
 from PyQt6.QtCore import QStandardPaths
 from PyQt6.QtWidgets import QApplication, QWidget, QStyle
 from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime
-from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
+from PyQt6.QtGui import QIcon, QPainter, QColor
 
 
 if platform.system() == "Windows":
@@ -25,27 +26,22 @@ DARK_THEME = """
 QWidget { background-color: #2b2b2b; color: #f0f0f0; font-family: Segoe UI; font-size: 14px; }
 QWidget#title_bar { background-color: #1e1e1e; }
 QWidget#nav_bar { background-color: #3c3c3c; border-bottom: 1px solid #555; }
-QPushButton#nav_button {
-    background-color: transparent; border: none; padding: 10px; font-size: 15px; font-weight: bold; color: #a9a9a9;
-}
+QPushButton#nav_button { background-color: transparent; border: none; padding: 10px; font-size: 15px; font-weight: bold; color: #a9a9a9; }
 QPushButton#nav_button:hover { background-color: #4f4f4f; }
 QPushButton#nav_button[active="true"] { color: #ffffff; border-bottom: 2px solid #0078d7; }
-QLineEdit#time_input {
-    background-color: transparent; border: none; color: #f0f0f0; font-size: 40px; font-weight: bold;
-    max-width: 60px; text-align: center;
-}
+QLineEdit#time_input { background-color: transparent; border: none; color: #f0f0f0; font-size: 40px; font-weight: bold; max-width: 60px; text-align: center; }
 QLabel#time_colon { font-size: 35px; font-weight: bold; color: #f0f0f0; }
 QLabel#title_label { font-size: 16px; font-weight: bold; padding-left: 5px; }
 QPushButton { background-color: #555555; border: 1px solid #777777; padding: 8px; border-radius: 3px; }
 QPushButton:hover { background-color: #6a6a6a; }
-QPushButton#start_button { background-color: #0078d7; }
-QPushButton#reset_button { background-color: #555; }
+QPushButton#start_button { background-color: #0078d7; font-weight: bold; }
+QPushButton#reset_button { background-color: #555; font-weight: bold; }
 QTextEdit { background-color: #3c3c3c; border: 1px solid #555555; border-radius: 3px; }
 QPushButton#minimize_button, QPushButton#maximize_button, QPushButton#close_button { background-color: transparent; border: none; padding: 2px; }
 QPushButton#minimize_button:hover, QPushButton#maximize_button:hover { background-color: #555555; }
 QPushButton#close_button:hover { background-color: #e81123; }
 QTabWidget::pane { border: none; }
-QTabBar::tab { border: none; }
+QTabBar { qproperty-drawBase: 0; }
 """
 
 class BlockerApp(QWidget):
@@ -55,10 +51,13 @@ class BlockerApp(QWidget):
         self.ui = Ui_BlockerApp()
         self.ui.setupUi(self)
         self._setup_title_bar_icons()
-        self.old_pos = None; self.hosts_path = self.get_hosts_path()
-        if platform.system() == "Windows": self.helper_path = self.get_helper_path(); self.previously_blocked_exes = set()
         
-        # --- LISTA DE BOTÕES RESTAURADA ---
+        self.old_pos = None
+        self.hosts_path = self.get_hosts_path()
+        if platform.system() == "Windows":
+            self.helper_path = self.get_helper_path()
+            self.previously_blocked_exes = set()
+        
         self.nav_buttons = [
             self.ui.nav_button_timer,
             self.ui.nav_button_lista,
@@ -77,8 +76,23 @@ class BlockerApp(QWidget):
         self.change_tab(0)
         self.show()
 
+    def cleanup_all_blocks(self):
+        """Remove todos os bloqueios aplicados por esta sessão."""
+        print(">>> Iniciando limpeza de todas as regras de bloqueio...")
+        self.update_hosts_file([], False)
+        if platform.system() == "Windows":
+            for exe in list(self.previously_blocked_exes):
+                self.unblock_executable(exe)
+        print(">>> Limpeza concluída.")
+
+    def closeEvent(self, event):
+        """Executa a limpeza antes de fechar a aplicação."""
+        self.cleanup_all_blocks()
+        event.accept()
+
     def _setup_title_bar_icons(self):
         style = self.style(); icon_color = QColor("white")
+        # Acessando botões via self.ui
         self.ui.minimize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton), icon_color))
         self.ui.maximize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton), icon_color))
         self.ui.close_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton), icon_color))
@@ -86,54 +100,52 @@ class BlockerApp(QWidget):
         self.ui.minimize_button.setIconSize(QSize(16, 16)); self.ui.maximize_button.setIconSize(QSize(16, 16)); self.ui.close_button.setIconSize(QSize(16, 16))
 
     def connect_signals(self):
-        # Sinais de navegação
+        # Acessando todos os widgets via self.ui
         self.ui.nav_button_timer.clicked.connect(lambda: self.change_tab(0))
         self.ui.nav_button_lista.clicked.connect(lambda: self.change_tab(1))
-        # --- SINAIS RESTAURADOS ---
         self.ui.nav_button_rank.clicked.connect(lambda: self.change_tab(2))
         self.ui.nav_button_estatisticas.clicked.connect(lambda: self.change_tab(3))
         #self.ui.nav_button_graficos.clicked.connect(lambda: self.change_tab(4))
         
-        # Sinais da janela
         self.ui.close_button.clicked.connect(self.close)
         self.ui.minimize_button.clicked.connect(self.showMinimized)
         self.ui.maximize_button.clicked.connect(self.toggle_maximize)
-        # Sinais do Blocker
-        self.apply_button.clicked.connect(self.apply_all_changes)
-        # Sinais do Timer
-        self.start_button.clicked.connect(self.start_timer)
-        self.reset_button.clicked.connect(self.reset_timer)
+        
+        self.ui.apply_button.clicked.connect(self.apply_all_changes)
+        
+        self.ui.start_button.clicked.connect(self.start_timer)
+        self.ui.reset_button.clicked.connect(self.reset_timer)
 
     def start_timer(self):
-        hours = int(self.circular_timer.hour_input.text() or 0)
-        minutes = int(self.circular_timer.minute_input.text() or 0)
-        seconds = int(self.circular_timer.second_input.text() or 0)
+        hours = int(self.ui.circular_timer.hour_input.text() or 0)
+        minutes = int(self.ui.circular_timer.minute_input.text() or 0)
+        seconds = int(self.ui.circular_timer.second_input.text() or 0)
         self.total_seconds = (hours * 3600) + (minutes * 60) + seconds
         self.var = self.total_seconds
         if self.total_seconds > 0:
             self.end_time = QDateTime.currentDateTime().addSecs(self.total_seconds)
             self.timer.start(16)
-            self.start_button.setEnabled(False)
-            self.circular_timer.set_inputs_visible(False)
+            self.ui.start_button.setEnabled(False)
+            self.ui.circular_timer.set_inputs_visible(False)
 
     def update_countdown(self):
         now = QDateTime.currentDateTime()
         remaining_msecs = now.msecsTo(self.end_time)
-        current_seconds_float = remaining_msecs / 1000.0
         if remaining_msecs <= 0:
-            self.status_label.setText("Status: Timer finished!"); QApplication.beep(); self.reset_timer()
+            self.timer.stop(); self.ui.status_label.setText("Status: Timer finalizado!"); QApplication.beep(); self.reset_timer()
             return
-        self.circular_timer.set_time(self.total_seconds, current_seconds_float)
+        current_seconds_float = remaining_msecs / 1000.0
+        self.ui.circular_timer.set_time(self.total_seconds, current_seconds_float)
 
     def reset_timer(self):
         updated_data = self.save_session_history(float(self.total_seconds))
         self.ui.history_graph.load_history(updated_data)
         self.timer.stop()
-        h = int(self.circular_timer.hour_input.text() or 0); m = int(self.circular_timer.minute_input.text() or 0); s = int(self.circular_timer.second_input.text() or 0)
+        h = int(self.ui.circular_timer.hour_input.text() or 0); m = int(self.ui.circular_timer.minute_input.text() or 0); s = int(self.ui.circular_timer.second_input.text() or 0)
         self.total_seconds = (h * 3600) + (m * 60) + s
-        self.circular_timer.set_time(self.total_seconds, self.total_seconds)
-        self.start_button.setEnabled(True)
-        self.circular_timer.set_inputs_visible(True)
+        self.ui.circular_timer.set_time(self.total_seconds, self.total_seconds)
+        self.ui.start_button.setEnabled(True)
+        self.ui.circular_timer.set_inputs_visible(True)
 
     def change_tab(self, index):
         self.ui.tabs.setCurrentIndex(index)
@@ -141,8 +153,10 @@ class BlockerApp(QWidget):
             button.setProperty("active", i == index); button.style().polish(button)
             
     def apply_all_changes(self):
-        is_enabled = self.enable_checkbox.isChecked()
-        if platform.system() == "Windows": self.update_exe_blocks(self.app_list_edit.toPlainText().split('\n'), is_enabled)
+        is_enabled = self.ui.enable_checkbox.isChecked()
+        self.update_hosts_file(self.ui.website_list_edit.toPlainText().split('\n'), is_enabled)
+        if platform.system() == "Windows":
+             self.update_exe_blocks(self.ui.app_list_edit.toPlainText().split('\n'), is_enabled)
 
     def load_initial_state(self):
         if platform.system() == "Windows": self.load_exe_block_state()
@@ -183,10 +197,21 @@ class BlockerApp(QWidget):
         
         return data # Return the updated data to refresh the graph
 
+    def update_hosts_file(self, blacklist, is_enabled):
+        try:
+            with open(self.hosts_path, 'r') as f: lines = [line for line in f if MARKER not in line]
+            if is_enabled:
+                for site in blacklist:
+                    if site.strip(): lines.append(f"{REDIRECT_IP}\t{site.strip()}\t{MARKER}\n")
+            with open(self.hosts_path, 'w') as f: f.writelines(lines)
+            if not (not blacklist and not is_enabled):
+                self.ui.status_label.setText("Status: Lista de bloqueio atualizada!"); self.ui.status_label.setStyleSheet("color: green;"); self.flush_dns()
+        except Exception as e:
+            self.ui.status_label.setText(f"Hosts Error: {e}. Execute como Admin."); self.ui.status_label.setStyleSheet("color: red;")
 
     def update_exe_blocks(self, blacklist, is_enabled):
         try:
-            current_blacklist = {exe.strip() for exe in blacklist if exe.strip()}
+            current_blacklist = {exe.strip().lower() for exe in blacklist if exe.strip()}
             to_unblock = self.previously_blocked_exes - current_blacklist
             for exe in to_unblock: self.unblock_executable(exe)
             if is_enabled:
@@ -196,7 +221,8 @@ class BlockerApp(QWidget):
                 to_block = set();
                 for exe in self.previously_blocked_exes: self.unblock_executable(exe)
             self.previously_blocked_exes = to_block if is_enabled else set()
-            self.status_label.setText("Status: App block list updated!"); self.status_label.setStyleSheet("color: green;")
+            if not self.ui.website_list_edit.toPlainText().strip():
+                self.ui.status_label.setText("Status: Lista de bloqueio atualizada!"); self.ui.status_label.setStyleSheet("color: green;")
         except Exception as e:
             self.status_label.setText(f"App Block Error: {e}. Run as Admin."); self.status_label.setStyleSheet("color: red;")
 
@@ -232,12 +258,19 @@ class BlockerApp(QWidget):
         try:
             key_path = fr"Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\{exe_name}"
             winreg.DeleteKey(winreg.HKEY_LOCAL_MACHINE, key_path)
-        except Exception as e: print(f"Error unblocking {exe_name}: {e}")
+        except Exception as e:
+            if not isinstance(e, FileNotFoundError): print(f"Error unblocking {exe_name}: {e}")
+
+
     def get_hosts_path(self): return r"C:\Windows\System32\drivers\etc\hosts" if platform.system() == "Windows" else "/etc/hosts"
     def get_helper_path(self): return os.path.abspath(os.path.join(os.path.dirname(__file__), 'blocker_helper.pyw'))
+    def flush_dns(self): 
+        if platform.system() == "Windows": os.system("ipconfig /flushdns")
+
     def toggle_maximize(self):
         if self.isMaximized(): self.showNormal()
         else: self.showMaximized()
+        
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and self.ui.title_bar.underMouse(): self.old_pos = event.globalPosition().toPoint()
     def mouseMoveEvent(self, event):
@@ -248,4 +281,5 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     app.setStyleSheet(DARK_THEME)
     ex = BlockerApp()
+    atexit.register(ex.cleanup_all_blocks)
     sys.exit(app.exec())
