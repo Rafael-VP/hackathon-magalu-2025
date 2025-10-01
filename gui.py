@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QScreen, QPainter, QColor, QPen, QFont, QIntValidator, QPixmap, QIcon
 from PyQt6.QtCore import Qt, QRectF, QTimer, QSize
+from PyQt6.QtSvg import QSvgRenderer
 from history_graph import HistoryGraph
 
 SERVER_BASE_URL = "http://201.23.72.236:5000"
@@ -190,9 +191,9 @@ class CircularTimerWidget(QWidget):
         self.start_color = QColor("#3C3C3C")  # Dark grey
         self.end_color = QColor("#0078d7")    # Blue
         try:
-            self.base_hourglass_icon = QIcon("hourglass.png")
+            self.base_hourglass_icon = QIcon("data/hourglass.svg")
         except Exception as e:
-            print(f"Could not load hourglass.png: {e}")
+            print(f"Could not load hourglass.svg: {e}")
             self.base_hourglass_icon = None
         # <<< CHANGE END >>>
         

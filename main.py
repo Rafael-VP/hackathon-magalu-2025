@@ -8,26 +8,46 @@ import atexit
 from datetime import datetime
 from urllib.parse import urlparse
 from PyQt6.QtWidgets import (QApplication, QWidget, QStyle, QDialog, QLineEdit, 
-                             QPushButton, QLabel, QFormLayout, QHBoxLayout, QVBoxLayout, QCheckBox)
+                             QPushButton, QLabel, QFormLayout, QHBoxLayout, QVBoxLayout)
 from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime, QStandardPaths
-from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
+from PyQt6.QtSvg import QSvgRenderer
+from PyQt6.QtGui import QIcon, QColor, QPixmap, QPainter
 
 
 if platform.system() == "Windows":
     import winreg
 
-from gui import Ui_BlockerApp
+# Importa a classe da interface do usuário do arquivo gui.py
+from gui import Ui_BlockerApp, LoginDialog, RegisterDialog, recolor_icon
 
-def recolor_icon(icon: QIcon, color: QColor) -> QIcon:
-    pixmap = icon.pixmap(QSize(256, 256))
-    mask = pixmap.mask()
-    pixmap.fill(color)
-    pixmap.setMask(mask)
-    return QIcon(pixmap)
+# --- FUNÇÕES AUXILIARES E CONSTANTES GLOBAIS ---
+
+def recolor_svg_to_pixmap(svg_path: str, color: QColor, size: QSize) -> QPixmap:
+
+    try:
+        with open(svg_path, "r") as f:
+            svg_data = f.read()
+        
+        # IMPORTANT: Your SVG file must use fill="#000000" for the parts you want to color.
+        colored_svg_data = svg_data.replace('fill="#000000"', f'fill="{color.name()}"')
+        
+        pixmap = QPixmap(size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        renderer = QSvgRenderer(bytearray(colored_svg_data, 'utf-8'))
+        
+        painter = QPainter(pixmap)
+        renderer.render(painter)
+        painter.end()
+        
+        return pixmap
+    except Exception as e:
+        print(f"Error recoloring SVG {svg_path}: {e}")
+        return QPixmap() # Return empty pixmap on error
 
 MARKER = "# MANAGED BY PYQT-BLOCKER"
 SERVER_BASE_URL = "http://201.23.72.236:5000"
 REDIRECT_IP = "127.0.0.1"
+SERVER_BASE_URL = "http://201.23.72.236:5000"
 DARK_THEME = """
 QWidget { background-color: #2b2b2b; color: #f0f0f0; font-family: Segoe UI; font-size: 14px; }
 QWidget#title_bar { background-color: #1e1e1e; }
@@ -53,109 +73,165 @@ QTabWidget::pane { border: none; }
 QTabBar { qproperty-drawBase: 0; }
 """
 
+# --- JANELA DE LOGIN ---
 class LoginDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Login")
         self.setModal(True)
-        self.setMinimumWidth(400)
-        title_label = QLabel("Bem-Vindo ao HourClass!")
-        title_label.setObjectName("login_title")
+
+        # --- ATUALIZADO: Adiciona variável para guardar o usuário logado ---
+        self.successful_username = None
+
         self.username_edit = QLineEdit()
-        self.username_edit.setPlaceholderText("Digite seu usuário")
         self.password_edit = QLineEdit()
-        self.password_edit.setPlaceholderText("Digite sua senha")
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.show_password_checkbox = QCheckBox("Mostrar Senha")
         self.create_user_button = QPushButton("Criar Novo Usuário")
         self.login_button = QPushButton("Entrar")
-        self.login_button.setObjectName("primary_button")
         self.cancel_button = QPushButton("Cancelar")
         self.error_label = QLabel("")
         self.error_label.setStyleSheet("color: #ff5555;")
-        self.error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
         form_layout = QFormLayout()
         form_layout.addRow("Usuário:", self.username_edit)
         form_layout.addRow("Senha:", self.password_edit)
-        checkbox_layout = QHBoxLayout()
-        checkbox_layout.addStretch()
-        checkbox_layout.addWidget(self.show_password_checkbox)
+        
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.create_user_button)
         button_layout.addStretch()
         button_layout.addWidget(self.cancel_button)
         button_layout.addWidget(self.login_button)
+        
         main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(15)
-        main_layout.addWidget(title_label)
         main_layout.addLayout(form_layout)
-        main_layout.addLayout(checkbox_layout)
         main_layout.addWidget(self.error_label)
-        main_layout.addStretch()
         main_layout.addLayout(button_layout)
-        self.create_user_button.clicked.connect(self.show_register_dialog) 
+        
+        self.create_user_button.clicked.connect(self.show_register_dialog)
         self.login_button.clicked.connect(self.handle_login)
         self.cancel_button.clicked.connect(self.reject)
-        self.show_password_checkbox.toggled.connect(self.toggle_password_visibility)
-        self.password_edit.returnPressed.connect(self.login_button.click)
 
-    def toggle_password_visibility(self, checked):
-        if checked: self.password_edit.setEchoMode(QLineEdit.EchoMode.Normal)
-        else: self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
     def show_register_dialog(self):
         register_dialog = RegisterDialog(self)
         register_dialog.exec()
+
     def handle_login(self):
         username = self.username_edit.text()
         password = self.password_edit.text()
+        
+        # --- ATUALIZADO: Usa a constante global ---
         server_url = f"{SERVER_BASE_URL}/login"
         payload = {'username': username, 'password': password}
+
         try:
             self.login_button.setEnabled(False)
             self.error_label.setText("Conectando...")
             QApplication.processEvents()
             response = requests.post(server_url, json=payload, timeout=10)
-            if response.status_code == 200: self.accept()
-            elif response.status_code == 401: self.error_label.setText("Usuário ou senha inválidos.")
-            else: self.error_label.setText(f"Erro no servidor: {response.status_code}")
-        except requests.exceptions.ConnectionError: self.error_label.setText("Erro de conexão com o servidor.")
-        except requests.exceptions.Timeout: self.error_label.setText("Erro: A conexão demorou para responder.")
-        finally: self.login_button.setEnabled(True)
 
+            if response.status_code == 200:
+                # --- ATUALIZADO: Guarda o nome do usuário antes de fechar ---
+                self.successful_username = username
+                self.accept()
+            elif response.status_code == 401:
+                self.error_label.setText("Usuário ou senha inválidos.")
+            else:
+                self.error_label.setText(f"Erro no servidor: {response.status_code}")
+        except requests.exceptions.RequestException:
+            self.error_label.setText("Erro de conexão com o servidor.")
+        finally:
+            self.login_button.setEnabled(True)
+
+
+# --- JANELA DE REGISTRO ---
 class RegisterDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Criar Novo Usuário")
-        self.setModal(True); self.setMinimumWidth(350)
-        self.username_edit = QLineEdit(); self.password_edit = QLineEdit(); self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.confirm_password_edit = QLineEdit(); self.confirm_password_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.register_button = QPushButton("Registrar"); self.cancel_button = QPushButton("Cancelar")
-        self.status_label = QLabel(""); self.status_label.setStyleSheet("color: #ff5555;")
-        form_layout = QFormLayout(); form_layout.addRow("Usuário:", self.username_edit); form_layout.addRow("Senha:", self.password_edit); form_layout.addRow("Confirmar Senha:", self.confirm_password_edit)
-        button_layout = QHBoxLayout(); button_layout.addStretch(); button_layout.addWidget(self.cancel_button); button_layout.addWidget(self.register_button)
-        main_layout = QVBoxLayout(self); main_layout.addLayout(form_layout); main_layout.addWidget(self.status_label); main_layout.addLayout(button_layout)
-        self.register_button.clicked.connect(self.handle_register); self.cancel_button.clicked.connect(self.reject)
+        self.setModal(True)
+        self.setMinimumWidth(350)
+
+        self.username_edit = QLineEdit()
+        self.password_edit = QLineEdit()
+        self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.confirm_password_edit = QLineEdit()
+        self.confirm_password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.register_button = QPushButton("Registrar")
+        self.cancel_button = QPushButton("Cancelar")
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet("color: #ff5555;")
+        
+        form_layout = QFormLayout()
+        form_layout.addRow("Usuário:", self.username_edit)
+        form_layout.addRow("Senha:", self.password_edit)
+        form_layout.addRow("Confirmar Senha:", self.confirm_password_edit)
+        
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        button_layout.addWidget(self.cancel_button)
+        button_layout.addWidget(self.register_button)
+        
+        main_layout = QVBoxLayout(self)
+        main_layout.addLayout(form_layout)
+        main_layout.addWidget(self.status_label)
+        main_layout.addLayout(button_layout)
+        
+        self.register_button.clicked.connect(self.handle_register)
+        self.cancel_button.clicked.connect(self.reject)
+
     def handle_register(self):
-        username = self.username_edit.text(); password = self.password_edit.text(); confirm_password = self.confirm_password_edit.text()
-        if not username or not password: self.status_label.setText("Usuário e senha não podem estar vazios."); return
-        if password != confirm_password: self.status_label.setText("As senhas não coincidem."); return
-        server_url = f"{SERVER_BASE_URL}/register"; payload = {'username': username, 'password': password}
+        username = self.username_edit.text()
+        password = self.password_edit.text()
+        confirm_password = self.confirm_password_edit.text()
+
+        if not username or not password:
+            self.status_label.setText("Usuário e senha não podem estar vazios.")
+            return
+        if password != confirm_password:
+            self.status_label.setText("As senhas não coincidem.")
+            return
+
+        # --- ATUALIZADO: Usa a constante global ---
+        server_url = f"{SERVER_BASE_URL}/register"
+        payload = {'username': username, 'password': password}
+
         try:
-            self.register_button.setEnabled(False); self.status_label.setText("Registrando...")
+            self.register_button.setEnabled(False)
+            self.status_label.setText("Registrando...")
             QApplication.processEvents()
             response = requests.post(server_url, json=payload, timeout=10)
-            if response.status_code == 201: self.status_label.setStyleSheet("color: #55ff7f;"); self.status_label.setText("Usuário criado! Você já pode fazer o login."); QTimer.singleShot(2000, self.accept)
-            elif response.status_code == 409: self.status_label.setStyleSheet("color: #ff5555;"); self.status_label.setText("Este nome de usuário já existe.")
-            else: self.status_label.setStyleSheet("color: #ff5555;"); self.status_label.setText(f"Erro no servidor: {response.status_code}")
-        except requests.exceptions.RequestException: self.status_label.setStyleSheet("color: #ff5555;"); self.status_label.setText("Erro de conexão com o servidor.")
-        finally: self.register_button.setEnabled(True)
+
+            if response.status_code == 201:
+                self.status_label.setStyleSheet("color: #55ff7f;")
+                self.status_label.setText("Usuário criado! Você já pode fazer o login.")
+                QTimer.singleShot(2000, self.accept)
+            elif response.status_code == 409:
+                self.status_label.setStyleSheet("color: #ff5555;")
+                self.status_label.setText("Este nome de usuário já existe.")
+            else:
+                self.status_label.setStyleSheet("color: #ff5555;")
+                self.status_label.setText(f"Erro no servidor: {response.status_code}")
+        except requests.exceptions.RequestException:
+            self.status_label.setStyleSheet("color: #ff5555;")
+            self.status_label.setText("Erro de conexão com o servidor.")
+        finally:
+            self.register_button.setEnabled(True)
+            
+# --- CLASSE PRINCIPAL DA APLICAÇÃO ---
 
 class BlockerApp(QWidget):
-    def __init__(self):
+    def __init__(self, username: str):
         super().__init__()
+        # Armazena o usuário logado para uso futuro
+        self.logged_in_user = username
+        
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.ui = Ui_BlockerApp()
         self.ui.setupUi(self)
+
+        # Atualiza o título para mostrar quem está logado
+        self.ui.title_label.setText(f"Blocker - Usuário: {self.logged_in_user}")
+        
         self._setup_title_bar_icons()
         self.old_pos = None
         self.hosts_path = self.get_hosts_path()
@@ -163,8 +239,10 @@ class BlockerApp(QWidget):
             self.helper_path = self.get_helper_path()
             self.previously_blocked_exes = set()
         self.nav_buttons = [
-            self.ui.nav_button_timer, self.ui.nav_button_lista,
-            self.ui.nav_button_estatisticas, self.ui.nav_button_rank
+            self.ui.nav_button_timer,
+            self.ui.nav_button_lista,
+            self.ui.nav_button_estatisticas,
+            self.ui.nav_button_rank,
         ]
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_countdown)
@@ -187,28 +265,48 @@ class BlockerApp(QWidget):
         self.cleanup_all_blocks()
         event.accept()
 
+    # main.py -> inside BlockerApp class
+
     def _setup_title_bar_icons(self):
+        """Gets system icons, recolors them, and applies them to buttons."""
         style = self.style()
-        app_icon_color = QColor("#0078d7")
-        button_icon_color = QColor("white")
-        try:
-            app_icon = QIcon("icon.png")
-            colored_app_icon = recolor_icon(app_icon, app_icon_color)
-            self.setWindowIcon(colored_app_icon)
-            self.ui.icon_label.setPixmap(colored_app_icon.pixmap(QSize(256, 256)))
-        except Exception as e:
-            print(f"Não foi possível carregar o ícone: {e}. Certifique-se que icon.png está na pasta.")
+        app_icon_color = QColor("#0078d7") # Define the color for the app icon
+        button_icon_color = QColor("white") # Define the color for the button icons
+        
+        # This part for the window control buttons remains the same
         self.ui.minimize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton), button_icon_color))
         self.ui.maximize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton), button_icon_color))
         self.ui.close_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton), button_icon_color))
-        self.ui.minimize_button.setFixedSize(32, 32); self.ui.maximize_button.setFixedSize(32, 32); self.ui.close_button.setFixedSize(32, 32)
-        self.ui.minimize_button.setIconSize(QSize(16, 16)); self.ui.maximize_button.setIconSize(QSize(16, 16)); self.ui.close_button.setIconSize(QSize(16, 16))
+
+        # <<< CHANGE: Load, color, and set the main application SVG icon >>>
+        try:
+            # Use the new function and path
+            colored_pixmap = recolor_svg_to_pixmap("data/icon.svg", app_icon_color, QSize(256, 256))
+            
+            # Set the icon for the main window (taskbar)
+            self.setWindowIcon(QIcon(colored_pixmap))
+            
+            # Set the icon for the label in the title bar
+            self.ui.icon_label.setPixmap(colored_pixmap)
+        except Exception as e:
+            print(f"Could not load or set app icon: {e}")
+
+        # The rest of the method for setting button sizes and icon sizes...
+        self.ui.minimize_button.setFixedSize(32, 32)
+        self.ui.maximize_button.setFixedSize(32, 32)
+        self.ui.close_button.setFixedSize(32, 32)
+        
+        self.ui.minimize_button.setIconSize(QSize(16, 16))
+        self.ui.maximize_button.setIconSize(QSize(16, 16))
+        self.ui.close_button.setIconSize(QSize(16, 16))
 
     def connect_signals(self):
         self.ui.nav_button_timer.clicked.connect(lambda: self.change_tab(0))
         self.ui.nav_button_lista.clicked.connect(lambda: self.change_tab(1))
         self.ui.nav_button_estatisticas.clicked.connect(lambda: self.change_tab(2))
         self.ui.nav_button_rank.clicked.connect(lambda: self.change_tab(3))
+        #self.ui.nav_button_graficos.clicked.connect(lambda: self.change_tab(4))
+        
         self.ui.close_button.clicked.connect(self.close)
         self.ui.minimize_button.clicked.connect(self.showMinimized)
         self.ui.maximize_button.clicked.connect(self.toggle_maximize)
@@ -244,7 +342,9 @@ class BlockerApp(QWidget):
             self.ui.website_list_widget.takeItem(row)
 
     def start_timer(self):
-        hours = int(self.ui.circular_timer.hour_input.text() or 0); minutes = int(self.ui.circular_timer.minute_input.text() or 0); seconds = int(self.ui.circular_timer.second_input.text() or 0)
+        hours = int(self.ui.circular_timer.hour_input.text() or 0)
+        minutes = int(self.ui.circular_timer.minute_input.text() or 0)
+        seconds = int(self.ui.circular_timer.second_input.text() or 0)
         self.total_seconds = (hours * 3600) + (minutes * 60) + seconds
         if self.total_seconds > 0:
             self.ui.enable_checkbox.setChecked(True); self.apply_all_changes()
@@ -253,13 +353,18 @@ class BlockerApp(QWidget):
             self.timer.start(16); self.ui.start_button.setEnabled(False); self.ui.circular_timer.set_inputs_visible(False)
 
     def update_countdown(self):
-        now = QDateTime.currentDateTime(); remaining_msecs = now.msecsTo(self.end_time)
+        now = QDateTime.currentDateTime()
+        remaining_msecs = now.msecsTo(self.end_time)
         if remaining_msecs <= 0:
-            if self.timer.isActive():
-                self.send_block_time_to_server(self.total_seconds)
-                updated_data = self.save_session_history(self.total_seconds)
-                self.ui.history_graph.load_history(updated_data)
-                self.timer.stop(); self.ui.status_label.setText("Status: Timer finalizado! Sites desbloqueados."); QApplication.beep(); self.reset_timer()
+            # --- ATUALIZADO: Envia o tempo para o servidor ---
+            self.send_block_time_to_server(self.total_seconds)
+            
+            updated_data = self.save_session_history(self.total_seconds)
+            self.ui.history_graph.load_history(updated_data)
+            self.timer.stop()
+            self.ui.status_label.setText("Status: Timer finalizado!")
+            QApplication.beep()
+            self.reset_timer()
             return
         current_seconds_float = remaining_msecs / 1000.0
         self.ui.circular_timer.set_time(self.total_seconds, current_seconds_float)
@@ -268,9 +373,9 @@ class BlockerApp(QWidget):
         self.timer.stop()
         h = int(self.ui.circular_timer.hour_input.text() or 0); m = int(self.ui.circular_timer.minute_input.text() or 0); s = int(self.ui.circular_timer.second_input.text() or 0)
         self.total_seconds = (h * 3600) + (m * 60) + s
-        self.ui.enable_checkbox.setChecked(False); self.apply_all_changes()
-        self.ui.status_label.setText("Status: Pronto para iniciar."); self.ui.enable_checkbox.setEnabled(True); self.ui.apply_button.setEnabled(True)
-        self.ui.circular_timer.set_time(self.total_seconds, self.total_seconds); self.ui.start_button.setEnabled(True); self.ui.circular_timer.set_inputs_visible(True)
+        self.ui.circular_timer.set_time(self.total_seconds, self.total_seconds)
+        self.ui.start_button.setEnabled(True)
+        self.ui.circular_timer.set_inputs_visible(True)
 
     def change_tab(self, index):
         self.ui.tabs.setCurrentIndex(index)
@@ -283,18 +388,23 @@ class BlockerApp(QWidget):
         website_list = [self.ui.website_list_widget.item(i).text() for i in range(self.ui.website_list_widget.count())]
         self.update_hosts_file(website_list, is_enabled)
         if platform.system() == "Windows":
-             self.update_exe_blocks(self.ui.app_list_edit.toPlainText().split('\n'), is_enabled)
-        self.save_lists_to_files()
+            self.update_exe_blocks(self.ui.app_list_edit.toPlainText().split('\n'), is_enabled)
 
     def load_initial_state(self):
         self.cleanup_all_blocks()
-        self.load_lists_from_files()
-        self.ui.status_label.setText("Status: Pronto. Listas anteriores carregadas.")
+        self.ui.status_label.setText("Status: Pronto para iniciar.")
+        self.ui.website_list_widget.clear()
+        if platform.system() == "Windows":
+            self.ui.app_list_edit.setText("")
+            self.load_exe_block_state()
+
         app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
         history_file = os.path.join(app_data_path, "blocker_history.json")
         try:
-            with open(history_file, 'r') as f: history_data = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError): history_data = {}
+            with open(history_file, 'r') as f:
+                history_data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            history_data = {}
         self.ui.history_graph.load_history(history_data)
 
     def get_config_path(self, filename):
@@ -327,29 +437,37 @@ class BlockerApp(QWidget):
     
     def save_session_history(self, session_duration_seconds):
         app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
-        os.makedirs(app_data_path, exist_ok=True)
-        history_file = os.path.join(app_data_path, "blocker_history.json"); today_str = datetime.now().strftime("%Y-%m-%d")
-        data = {}
+        history_file = os.path.join(app_data_path, "blocker_history.json")
+        today_str = datetime.now().strftime("%Y-%m-%d")
         try:
-            with open(history_file, 'r') as f: data = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError): pass
+            with open(history_file, 'r') as f:
+                data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            data = {}
         data[today_str] = data.get(today_str, 0) + session_duration_seconds
-        with open(history_file, 'w') as f: json.dump(data, f)
+        os.makedirs(app_data_path, exist_ok=True)
+        with open(history_file, 'w') as f:
+            json.dump(data, f)
         return data
 
     def update_hosts_file(self, blacklist, is_enabled, is_cleanup=False):
         try:
-            with open(self.hosts_path, 'r') as f: lines = [line for line in f if MARKER not in line]
+            with open(self.hosts_path, 'r') as f:
+                lines = [line for line in f if MARKER not in line]
             if is_enabled:
-                final_blacklist = set()
-                for canonical_domain in blacklist:
-                    if canonical_domain.strip(): final_blacklist.add(canonical_domain.strip()); final_blacklist.add('www.' + canonical_domain.strip())
-                for site in final_blacklist: lines.append(f"{REDIRECT_IP}\t{site}\t{MARKER}\n")
-            with open(self.hosts_path, 'w') as f: f.writelines(lines)
-            if not is_cleanup and is_enabled: self.ui.status_label.setText("Status: Lista de bloqueio atualizada!"); self.ui.status_label.setStyleSheet("color: #55ff7f;"); self.flush_dns()
-        except PermissionError: self.ui.status_label.setText("Hosts Error: Acesso negado. Execute como Administrador."); self.ui.status_label.setStyleSheet("color: #ff5555;")
-        except Exception as e: self.ui.status_label.setText(f"Hosts Error: {e}"); self.ui.status_label.setStyleSheet("color: #ff5555;")
-
+                for site in blacklist:
+                    if site.strip():
+                        lines.append(f"{REDIRECT_IP}\t{site.strip()}\t{MARKER}\n")
+            with open(self.hosts_path, 'w') as f:
+                f.writelines(lines)
+            if not is_cleanup:
+                self.ui.status_label.setText("Status: Lista de bloqueio atualizada!")
+                self.ui.status_label.setStyleSheet("color: green;")
+                self.flush_dns()
+        except Exception as e:
+            self.ui.status_label.setText(f"Hosts Error: {e}. Execute como Admin.")
+            self.ui.status_label.setStyleSheet("color: red;")
+            
     def update_exe_blocks(self, blacklist, is_enabled):
         try:
             current_blacklist = {exe.strip().lower() for exe in blacklist if exe.strip()}
@@ -413,26 +531,41 @@ class BlockerApp(QWidget):
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and self.ui.title_bar.underMouse(): self.old_pos = event.globalPosition().toPoint()
     def mouseMoveEvent(self, event):
-        if self.old_pos: delta = QPoint(event.globalPosition().toPoint() - self.old_pos); self.move(self.x() + delta.x(), self.y() + delta.y()); self.old_pos = event.globalPosition().toPoint()
-    def mouseReleaseEvent(self, event): self.old_pos = None
+        """Move a janela se o mouse estiver sendo arrastado."""
+        if self.old_pos:
+            delta = QPoint(event.globalPosition().toPoint() - self.old_pos)
+            self.move(self.x() + delta.x(), self.y() + delta.y())
+            self.old_pos = event.globalPosition().toPoint()
+
+    def mouseReleaseEvent(self, event):
+        """Finaliza o arraste da janela ao soltar o mouse."""
+        self.old_pos = None
+
     def send_block_time_to_server(self, duration_seconds):
-        if not hasattr(self, 'logged_in_user') or not self.logged_in_user: return
+        if not hasattr(self, 'logged_in_user') or not self.logged_in_user:
+            print("*** AVISO: Usuário não logado. O tempo não será enviado.")
+            return
         server_url = f"{SERVER_BASE_URL}/add_time"
-        payload = { 'username': self.logged_in_user, 'seconds': duration_seconds }
+        payload = {'username': self.logged_in_user, 'seconds': duration_seconds}
         try:
             requests.post(server_url, json=payload, timeout=10)
-            print(f">>> Block time ({duration_seconds}s) sent for user {self.logged_in_user}.")
-        except requests.exceptions.RequestException as e: print(f"*** ERROR sending time to server: {e}")
+            print(f">>> Tempo de bloqueio ({duration_seconds}s) enviado para o servidor para o usuário {self.logged_in_user}.")
+        except requests.exceptions.RequestException as e:
+            print(f"*** ERRO ao enviar tempo para o servidor: {e}")
 
+
+
+# --- PONTO DE ENTRADA DA APLICAÇÃO ---
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     app.setStyleSheet(DARK_THEME)
+
     login_dialog = LoginDialog()
-    logged_in_user = None
+    
+    # --- ATUALIZADO: Lógica completa de login e inicialização ---
     if login_dialog.exec() == QDialog.DialogCode.Accepted:
-        logged_in_user = login_dialog.username_edit.text()
-        main_app = BlockerApp()
-        main_app.logged_in_user = logged_in_user
+        logged_in_user = login_dialog.successful_username
+        main_app = BlockerApp(username=logged_in_user)
         atexit.register(main_app.cleanup_all_blocks)
         main_app.show()
         sys.exit(app.exec())
