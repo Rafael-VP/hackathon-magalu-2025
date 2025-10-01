@@ -17,7 +17,7 @@ if platform.system() == "Windows":
     import winreg
 
 # Importa a classe da interface do usuário do arquivo gui.py
-from gui import Ui_BlockerApp, LoginDialog, RegisterDialog
+from gui import Ui_BlockerApp, LoginDialog, RegisterDialog, recolor_icon
 
 # --- FUNÇÕES AUXILIARES E CONSTANTES GLOBAIS ---
 
@@ -91,9 +91,8 @@ class BlockerApp(QWidget):
         self.nav_buttons = [
             self.ui.nav_button_timer,
             self.ui.nav_button_lista,
-            self.ui.nav_button_rank,
             self.ui.nav_button_estatisticas,
-            #self.ui.nav_button_graficos
+            self.ui.nav_button_rank,
         ]
         
         self.timer = QTimer(self)
@@ -125,14 +124,16 @@ class BlockerApp(QWidget):
     # main.py -> inside BlockerApp class
 
     def _setup_title_bar_icons(self):
-        """Pega os ícones do sistema, os recolore e os aplica aos botões."""
+        """Gets system icons, recolors them, and applies them to buttons."""
         style = self.style()
-        icon_color = QColor("white")
+        app_icon_color = QColor("#0078d7") # Define the color for the app icon
+        button_icon_color = QColor("white") # Define the color for the button icons
         
-        self.ui.minimize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton), icon_color))
-        self.ui.maximize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton), icon_color))
-        self.ui.close_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton), icon_color))
-        
+        # This part for the window control buttons remains the same
+        self.ui.minimize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton), button_icon_color))
+        self.ui.maximize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton), button_icon_color))
+        self.ui.close_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton), button_icon_color))
+
         # <<< CHANGE: Load, color, and set the main application SVG icon >>>
         try:
             # Use the new function and path
@@ -146,21 +147,7 @@ class BlockerApp(QWidget):
         except Exception as e:
             print(f"Could not load or set app icon: {e}")
 
-        # This part for the window control buttons remains the same
-        # The recolor_icon function for standard pixmaps can be kept for these if needed,
-        # or removed if you're not using it anywhere else. For simplicity, we assume
-        # you might need it, so we'll just define it again here.
-        def recolor_pixmap_icon(icon: QIcon, color: QColor) -> QIcon:
-            pixmap = icon.pixmap(icon.actualSize(QSize(256, 256)))
-            mask = pixmap.mask()
-            pixmap.fill(color)
-            pixmap.setMask(mask)
-            return QIcon(pixmap)
-
-        self.ui.minimize_button.setIcon(recolor_pixmap_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton), button_icon_color))
-        self.ui.maximize_button.setIcon(recolor_pixmap_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton), button_icon_color))
-        self.ui.close_button.setIcon(recolor_pixmap_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton), button_icon_color))
-
+        # The rest of the method for setting button sizes and icon sizes...
         self.ui.minimize_button.setFixedSize(32, 32)
         self.ui.maximize_button.setFixedSize(32, 32)
         self.ui.close_button.setFixedSize(32, 32)
@@ -173,8 +160,8 @@ class BlockerApp(QWidget):
         """Conecta os sinais (eventos de clique) dos widgets às suas funções."""
         self.ui.nav_button_timer.clicked.connect(lambda: self.change_tab(0))
         self.ui.nav_button_lista.clicked.connect(lambda: self.change_tab(1))
-        self.ui.nav_button_rank.clicked.connect(lambda: self.change_tab(2))
-        self.ui.nav_button_estatisticas.clicked.connect(lambda: self.change_tab(3))
+        self.ui.nav_button_estatisticas.clicked.connect(lambda: self.change_tab(2))
+        self.ui.nav_button_rank.clicked.connect(lambda: self.change_tab(3))
         #self.ui.nav_button_graficos.clicked.connect(lambda: self.change_tab(4))
         
         self.ui.close_button.clicked.connect(self.close)
