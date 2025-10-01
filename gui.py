@@ -67,7 +67,7 @@ class LoginDialog(QDialog):
         self.icon_label.setScaledContents(True)
         self.icon_label.setPixmap(colored_pixmap)
         
-        title_label = QLabel('Login to HourGlass')
+        title_label = QLabel('Login to hourGlass')
         title_label.setObjectName("title_label")
 
         button_icon_color = QColor("white")
@@ -93,7 +93,7 @@ class LoginDialog(QDialog):
         self.close_button.setIconSize(QSize(16, 16))
         
         # --- LOGIN FORM WIDGETS ---
-        login_title_label = QLabel("Bem-Vindo ao HourClass!")
+        login_title_label = QLabel("Bem-Vindo ao hourClass!")
         login_title_label.setObjectName("login_title")
 
         self.username_edit = QLineEdit()
@@ -460,7 +460,7 @@ class CircularTimerWidget(QWidget):
 
 class Ui_BlockerApp(object):
     def setupUi(self, main_window):
-        main_window.setWindowTitle('PyQt System Blocker')
+        main_window.setWindowTitle('hourClass')
         screen = QScreen.availableGeometry(QApplication.primaryScreen())
         width = int(screen.width() * 0.4)
         height = int(screen.height() * 0.6)
@@ -478,7 +478,7 @@ class Ui_BlockerApp(object):
         self.icon_label.setFixedSize(20, 20)
         self.icon_label.setScaledContents(True)
         
-        self.title_label = QLabel('PyQt System Blocker')
+        self.title_label = QLabel('hourClass')
         self.title_label.setObjectName("title_label")
         self.minimize_button = QPushButton()
         self.minimize_button.setObjectName("minimize_button")
@@ -530,6 +530,24 @@ class Ui_BlockerApp(object):
         timer_page_layout = QVBoxLayout(timer_page)
         self.circular_timer = CircularTimerWidget()
         timer_button_layout = QHBoxLayout()
+        # --- NEW: Synced Session Controls ---
+        line = QWidget(); line.setFixedHeight(1); line.setStyleSheet("background-color: #555;")
+        timer_page_layout.addWidget(line)
+
+        sync_layout = QHBoxLayout()
+        sync_layout.setContentsMargins(0, 10, 0, 0)
+        self.room_input = QLineEdit()
+        self.room_input.setPlaceholderText("Nome da Sala")
+        self.connect_button = QPushButton("Conectar à Sala")
+        self.disconnect_button = QPushButton("Desconectar")
+        self.sync_status_label = QLabel("Desconectado")
+
+        sync_layout.addWidget(self.room_input)
+        sync_layout.addWidget(self.connect_button)
+        sync_layout.addWidget(self.disconnect_button)
+        sync_layout.addStretch()
+        sync_layout.addWidget(self.sync_status_label)
+        timer_page_layout.addLayout(sync_layout)
         self.start_button = QPushButton("Start")
         self.start_button.setObjectName("start_button")
         self.reset_button = QPushButton("Reset")
@@ -600,3 +618,8 @@ class Ui_BlockerApp(object):
         content_layout.addWidget(self.tabs)
         self.status_label = QLabel('Status: Ready')
         content_layout.addWidget(self.status_label)
+
+        main_window.room_input = self.room_input
+        main_window.connect_button = self.connect_button
+        main_window.disconnect_button = self.disconnect_button
+        main_window.sync_status_label = self.sync_status_label
