@@ -160,11 +160,20 @@ class BlockerApp(QWidget):
         self.ui.nav_button_lista.clicked.connect(lambda: self.change_tab(1))
         self.ui.nav_button_estatisticas.clicked.connect(lambda: self.change_tab(2))
         self.ui.nav_button_rank.clicked.connect(lambda: self.change_tab(3))
-        #self.ui.nav_button_graficos.clicked.connect(lambda: self.change_tab(4))
         
         self.ui.close_button.clicked.connect(self.close)
         self.ui.minimize_button.clicked.connect(self.showMinimized)
         self.ui.maximize_button.clicked.connect(self.toggle_maximize)
+        
+        # --- SINAIS PARA AS LISTAS ---
+        self.ui.add_url_button.clicked.connect(self.add_url_from_input)
+        self.ui.remove_url_button.clicked.connect(self.remove_selected_url)
+        self.ui.url_input.returnPressed.connect(self.add_url_from_input)
+        
+        self.ui.add_app_button.clicked.connect(self.add_app_from_input)
+        self.ui.remove_app_button.clicked.connect(self.remove_selected_app)
+        self.ui.app_input.returnPressed.connect(self.add_app_from_input)
+
         self.ui.apply_button.clicked.connect(self.apply_all_changes)
         self.ui.start_button.clicked.connect(self.start_timer)
         self.ui.reset_button.clicked.connect(self.reset_timer)
@@ -233,21 +242,20 @@ class BlockerApp(QWidget):
             
     def apply_all_changes(self):
         is_enabled = self.ui.enable_checkbox.isChecked()
-        # --- ALTERAÇÃO AQUI ---
-        website_list = self.ui.website_list_edit.toPlainText().split('\n')
-        # --- FIM DA ALTERAÇÃO ---
+        website_list = [self.ui.website_list_widget.item(i).text() for i in range(self.ui.website_list_widget.count())]
         self.update_hosts_file(website_list, is_enabled)
+        
         if platform.system() == "Windows":
-            self.update_exe_blocks(self.ui.app_list_edit.toPlainText().split('\n'), is_enabled)
+            app_list = [self.ui.app_list_widget.item(i).text() for i in range(self.ui.app_list_widget.count())]
+            self.update_exe_blocks(app_list, is_enabled)
 
     def load_initial_state(self):
         self.cleanup_all_blocks()
         self.ui.status_label.setText("Status: Pronto para iniciar.")
-        # --- ALTERAÇÃO AQUI ---
-        self.ui.website_list_edit.setText("")
-        # --- FIM DA ALTERAÇÃO ---
+        self.ui.website_list_widget.clear()
+        
         if platform.system() == "Windows":
-            self.ui.app_list_edit.setText("")
+            self.ui.app_list_widget.clear()
             self.load_exe_block_state()
 
         app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
@@ -338,7 +346,41 @@ class BlockerApp(QWidget):
         except Exception as e:
             self.ui.status_label.setText(f"Hosts Error: {e}. Execute como Admin.")
             self.ui.status_label.setStyleSheet("color: red;")
-                  
+
+    def add_url_from_input(self):
+        """Adiciona uma URL da caixa de texto à lista de sites."""
+        url = self.ui.url_input.text().strip()
+        if url:
+            # Evita adicionar itens duplicados
+            items = self.ui.website_list_widget.findItems(url, Qt.MatchFlag.MatchExactly)
+            if not items:
+                self.ui.website_list_widget.addItem(url)
+            self.ui.url_input.clear()
+
+    def remove_selected_url(self):
+        """Remove o item selecionado da lista de sites."""
+        list_items = self.ui.website_list_widget.selectedItems()
+        if not list_items: return
+        for item in list_items:
+            self.ui.website_list_widget.takeItem(self.ui.website_list_widget.row(item))
+
+    def add_app_from_input(self):
+        """Adiciona um .exe da caixa de texto à lista de apps."""
+        app = self.ui.app_input.text().strip()
+        if app:
+            # Evita adicionar itens duplicados
+            items = self.ui.app_list_widget.findItems(app, Qt.MatchFlag.MatchExactly)
+            if not items:
+                self.ui.app_list_widget.addItem(app)
+            self.ui.app_input.clear()
+
+    def remove_selected_app(self):
+        """Remove o item selecionado da lista de apps."""
+        list_items = self.ui.app_list_widget.selectedItems()
+        if not list_items: return
+        for item in list_items:
+            self.ui.app_list_widget.takeItem(self.ui.app_list_widget.row(item))
+
     def update_exe_blocks(self, blacklist, is_enabled):
         try:
             current_blacklist = {exe.strip().lower() for exe in blacklist if exe.strip()}
@@ -352,11 +394,9 @@ class BlockerApp(QWidget):
                 for exe in self.previously_blocked_exes: self.unblock_executable(exe)
             self.previously_blocked_exes = to_block if is_enabled else set()
             
-            # --- ALTERAÇÃO AQUI ---
-            if not self.ui.website_list_edit.toPlainText().strip():
+            if not self.ui.website_list_widget.count() > 0:
                  self.ui.status_label.setText("Status: Lista de bloqueio atualizada!")
                  self.ui.status_label.setStyleSheet("color: green;")
-            # --- FIM DA ALTERAÇÃO ---
         except Exception as e:
             self.ui.status_label.setText(f"App Block Error: {e}. Run as Admin.")
             self.ui.status_label.setStyleSheet("color: red;")
@@ -375,7 +415,8 @@ class BlockerApp(QWidget):
                             if self.helper_path in debugger_val: blocked_exes.add(exe_name)
                         i += 1
                     except OSError: break
-            self.ui.app_list_edit.setText('\n'.join(sorted(list(blocked_exes))))
+            
+            self.ui.app_list_widget.addItems(sorted(list(blocked_exes)))
             self.previously_blocked_exes = blocked_exes
         except FileNotFoundError: pass
         except Exception as e: print(f"Could not load EXE state: {e}")
