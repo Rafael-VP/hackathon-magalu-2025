@@ -1,23 +1,27 @@
-# hourClass
+# hourClass - Hackathon Magalu 2025
 
-O hourClass foi desenvolvido para o **Hackathon Magalu 2025**. É uma aplicação de desktop focada em produtividade, construída em Python com a biblioteca PyQt6. A ferramenta foi projetada para ajudar os usuários a manter o foco, evitando distrações digitais através de um timer, bloqueio de sites/aplicativos e análise do histórico de uso. Ademais, o sistema da Magalu Cloud foi utilizado de uma maneira criativa, pensada na produtividade, permitindo os usuários a sincronizarem seus dados, exortando a cooperação e atenção para tarefas importantes.
+##LINK DO VÍDEO PITCH
+https://drive.google.com/file/d/1aTiaTnPsH2rPo4XptTDCtCTIw_OH-5qj/view?usp=sharing
 
-## Sobre o nome
-* O nome hourClass é um trocadilho com a palavra "hourglass", que significa ampulheta em inglês. Visto que a principal funcionalidade do programa é reservar tempo para atividades como estudos e trabalho, a ampulheta se torna um símbolo muito adequado para relacionar ao projeto. Além disso, com a integração feita com a Magalu Cloud, somos capazes de trabalhar em conjunto com outros usuários, fazendo cada sessão de estudos ser "our class", ou seja, nossa aula!
+O **hourClass** é um aplicativo de desktop de produtividade desenvolvido em Python para o **Hackathon Magalu 2025**. Inspirado no conceito de uma ampulheta (`hourglass`), a ferramenta foi criada para ajudar você a manter o foco, eliminando distrações digitais com um sistema de bloqueio e um timer. De maneira inovadora, o sistema aproveita a **Magalu Cloud** para permitir sessões de foco em grupo, promovendo cooperação e responsabilidade compartilhada para tarefas importantes.
+
+## Sobre o Nome
+O nome `hourClass` é um trocadilho com "hourglass" (ampulheta). A ampulheta simboliza a gestão do tempo, que é a funcionalidade central do programa. O nome também sugere a ideia de "our class" (nossa aula), enfatizando o recurso de sincronização que permite a colaboração em grupo.
 
 ## Funcionalidades
 
-* **Autenticação de Usuário:** Sistema de login e registro conectado a um servidor, permitindo uma experiência personalizada.
-* **Timer Circular de Foco:** Uma interface de timer visual para gerenciar sessões de foco.
+* **Autenticação Segura:** Sistema de login e registro conectado a um servidor, oferecendo uma experiência de uso personalizada.
+* **Timer Circular de Foco:** Uma interface de timer visual para gerenciar suas sessões de foco.
 * **Bloqueador de Sites e Aplicativos:**
-    * **Sites:** Interface aprimorada para adicionar e remover URLs de uma lista de bloqueio, que funciona através da edição do arquivo `hosts` do sistema.
-    * **Aplicativos (Windows):** Permite ao usuário listar arquivos executáveis (`.exe`) para bloqueá-los durante o período de foco.
-* **Histórico de Foco com Gráfico:** A aplicação salva a duração de cada sessão de foco e exibe um gráfico visual do tempo focado nos últimos dias.
-* **Interface Simples:** Um design com tema escuro e componentes personalizados, incluindo uma barra de título própria para uma experiência de uso agradável.
+    * **Sites:** Gerencie sua lista de bloqueio de URLs diretamente na interface. O programa edita o arquivo `hosts` do sistema para redirecionar o tráfego e garantir que os sites não possam ser acessados durante a sessão.
+    * **Aplicativos (Windows):** Bloqueie aplicativos listando seus arquivos executáveis (`.exe`). O programa manipula o Registro do Windows para impedir a execução.
+* **Sessões Sincronizadas:** Um recurso único que permite a você e a um parceiro se conectarem a uma sala de foco virtual. O timer inicia simultaneamente para ambos os usuários, criando uma sessão de estudo ou trabalho colaborativa e sem distrações.
+* **Histórico de Foco com Gráfico:** A aplicação salva a duração de cada sessão de foco e exibe um gráfico visual do seu tempo focado nos últimos dias.
+* **Interface Simples e Intuitiva:** Um design de tema escuro com componentes personalizados para uma experiência de usuário agradável.
 
 ## Como Funciona
 
-A aplicação possui uma arquitetura cliente-servidor para autenticação. A lógica principal (`main.py`) controla a interface (`gui.py`) e as funcionalidades de bloqueio.
+A arquitetura do hourClass é cliente-servidor para autenticação e sincronização. A lógica principal (`main.py`) controla a interface (`gui.py`) e as funcionalidades de bloqueio.
 
 * **Bloqueio de Sites:** Adiciona entradas ao arquivo `hosts` do sistema para redirecionar o acesso a URLs listadas para `127.0.0.1`.
 * **Bloqueio de Aplicativos (Windows):** Manipula o Registro do Windows para interceptar e impedir a execução de aplicativos especificados. **Isso exige que o programa seja executado com privilégios de administrador.**
@@ -26,42 +30,41 @@ A aplicação possui uma arquitetura cliente-servidor para autenticação. A ló
 ## Pré-requisitos
 
 * Python 3
-* Bibliotecas Python: `PyQt6`, `requests`
+* Bibliotecas Python: `PyQt6`, `requests`, `uuid`
 
 ## Como Executar
 
 1.  Clone ou faça o download deste repositório.
 2.  Instale as dependências necessárias:
-    ```bash
-    pip install PyQt6 requests
-    ```
 3.  Navegue até o diretório do projeto.
-4.  Execute o script `main.py`. Lembre-se de **executar como administrador** no Windows para que as funcionalidades de bloqueio funcionem corretamente.
+4.  Execute o script `main.py`. Lembre-se de **executar como administrador** no Windows para que as funcionalidades de bloqueio de aplicativos e sites funcionem corretamente.
     ```bash
     python main.py
     ```
-5.  A janela de login aparecerá. Crie um novo usuário ou entre com uma conta existente.
+5.  A janela de login aparecerá. Crie um novo usuário ou entre com uma conta existente para começar.
 
 ## Como Usar
 
-### Utilizando o Timer
-1.  Na aba **Timer**, defina o tempo desejado (horas, minutos e segundos).
-2.  Clique em **Start** para iniciar a contagem regressiva.
-3.  Clique em **Reset** para parar e reiniciar o timer. A duração da sessão será salva no seu histórico.
+### 1. Utilizando o Timer
+Na aba **Timer**, você pode usar o timer de duas maneiras:
 
-### Bloqueando Sites e Aplicativos
-1.  Vá para a aba **Lista**.
-2.  **Para bloquear sites:**
-    * Digite a URL (ex: `youtube.com`) no campo de texto superior.
-    * Clique em **Adicionar**. O domínio será extraído e adicionado à lista.
-    * Para remover, selecione um ou mais sites na lista e clique em **Remover Selecionado**.
-    * DICA: para garantir um uso correto, é interessante adicionar variações de URLs, como "www.instagram.com" e "instagram.com"
-3.  **Para bloquear aplicativos:**
-    * Na caixa de texto inferior, insira o nome dos executáveis (ex: `chrome.exe`, `discord.exe`), um por linha.
-    * DICA: você pode clicar no aplicativo com o botão direito, e "ir ao local do arquivo", para garantir o nome correto do executável do app.
-4.  Para ativar os bloqueios, marque a caixa **Enable Blockers**.
-5.  Clique em **Apply Blocking Changes** para que as regras entrem em vigor.
+* **Timer Autônomo:** Defina o tempo desejado (horas, minutos e segundos) e clique em **Start** para iniciar a contagem regressiva para si mesmo.
+* **Sessão Sincronizada:** Na seção "Sessão Sincronizada", digite um nome de sala e clique em **Conectar à Sala**. Quando o parceiro se conectar, um de vocês pode definir a duração e clicar em **Start**. O timer começará simultaneamente para ambos.
 
-### Verificando o Histórico
-1.  Clique na aba **History**.
-2.  Um gráfico será exibido mostrando a quantidade total de segundos em foco para cada um dos últimos 7 dias.
+Clique em **Reset** para parar e reiniciar o timer. A duração da sessão será salva em seu histórico.
+Durante a sessão, o bloqueio de sites e aplicativos é ativado, com intuito de promover um tempo de foco para o(s) participante(s).
+
+### 2. Bloqueando Sites e Aplicativos
+Vá para a aba **Lista** para gerenciar suas distrações.
+
+* **Para bloquear sites:** Digite as URLs (ex: `youtube.com`) na caixa de texto superior, e clique no botão de adicionar. Para garantir um uso correto, adicione variações de URLs, como `www.instagram.com` e `instagram.com`.
+* **Para remover sites:** Apenas selecione o site que quer remover, e clique no botão de remoção.
+* **Para bloquear aplicativos:** Na caixa de texto inferior, insira o nome dos executáveis (ex: `chrome.exe`, `discord.exe`), e o processo é análogo a adicionar e remover sites.
+
+Para ativar os bloqueios, marque a caixa **Enable Blockers** e clique em **Apply Blocking Changes**.
+
+### 3. Verificando seu Histórico
+Clique na aba **Estatísticas** para visualizar um gráfico do seu tempo de foco diário ao longo dos últimos 365 dias.
+
+### 4. Verificando sua Posição (WIP)
+Clique na aba **Rank** para visualizar sua colocação em relação a outros usuários do aplicativo, com base no tempo de uso do app nos últimos 365 dias.

@@ -16,7 +16,7 @@ from PyQt6.QtGui import QIcon, QColor, QPixmap, QPainter
 from PyQt6.QtSvg import QSvgRenderer
 
 
-SERVER_BASE_URL = "http://localhost:5000" # Or your server's IP address
+SYNC_SERVER = "http://201.23.72.236:5001" # Or your server's IP address
 
 
 if platform.system() == "Windows":
@@ -63,7 +63,6 @@ def recolor_icon(icon: QIcon, color: QColor) -> QIcon:
 MARKER = "# MANAGED BY PYQT-BLOCKER"
 SERVER_BASE_URL = "http://201.23.72.236:5000"
 REDIRECT_IP = "127.0.0.1"
-SERVER_BASE_URL = "http://201.23.72.236:5000"
 DARK_THEME = """
 QWidget { background-color: #2b2b2b; color: #f0f0f0; font-family: Segoe UI; font-size: 14px; }
 QWidget#title_bar { background-color: #1e1e1e; }
@@ -148,7 +147,7 @@ class BlockerApp(QWidget):
         self.current_room = room_name
         payload = {"room_name": self.current_room, "user_id": self.user_id}
         try:
-            response = requests.post(f"{SERVER_BASE_URL}/join_room", json=payload)
+            response = requests.post(f"{SYNC_SERVER}/join_room", json=payload)
             if response.status_code == 200:
                 self.synced_session_active = True
                 self.ui.connect_button.setEnabled(False)
