@@ -15,6 +15,8 @@ class HistoryGraph(QWidget):
         super().__init__(parent)
         self.history_data = {}
         self.setMouseTracking(True)
+        # Cache for hit-testing to avoid recalculating on every mouse move
+        self.squares_rects = {}
 
     def load_history(self, data):
         """Loads history data and triggers a repaint."""
@@ -25,13 +27,15 @@ class HistoryGraph(QWidget):
         """Draws the centered history graph and text."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.squares_rects.clear() # Clear cache before redrawing
 
         today = datetime.now()
-        max_value = max(self.history_data.values()) if self.history_data else 1
+        # Use 'or [1]' to prevent error on max() with an empty sequence
+        max_value = max(self.history_data.values() or [1])
         
         # Calculate the total number of columns
-        num_columns = 366 // 7 + (1 if 366 % 7 > 0 else 0)
-        
+        num_columns = 53 # A year fits into 52 weeks and a few days
+
         # Calculate the total width and height of the grid
         total_graph_width = num_columns * (SQUARE_SIZE + SQUARE_SPACING)
         total_content_height = GRAPH_HEIGHT + TEXT_AREA_HEIGHT
@@ -40,41 +44,44 @@ class HistoryGraph(QWidget):
         x_offset = (self.width() - total_graph_width) / 2
         y_offset = (self.height() - total_content_height) / 2
         
-        # Ensure offsets aren't negative
-        if x_offset < 0:
-            x_offset = 0
-        if y_offset < 0:
-            y_offset = 0
+        # Ensure offsets aren't negative if the window is smaller than the graph
+        x_offset = max(0, x_offset)
+        y_offset = max(0, y_offset)
 
-        # Draw the squares with the offsets
-        for i in range(366):
+        # Draw the squares for the last 366 days
+        for i in range(365, -1, -1): # Iterate backwards to draw from left to right
             date = today - timedelta(days=i)
             date_str = date.strftime("%Y-%m-%d")
             
-            week_ago = (today.date() - date.date()).days // 7
-            day_of_week = date.weekday() # Monday is 0, Sunday is 6
-            
-            # Apply horizontal offset to the x-coordinate
-            x = x_offset + (self.width() - total_graph_width) + (week_ago * (SQUARE_SIZE + SQUARE_SPACING)) - self.width()
-            
-            # This is the correct x-coordinate calculation
-            x = x_offset + (num_columns - 1 - week_ago) * (SQUARE_SIZE + SQUARE_SPACING)
+            # This is day number from the start of the year (1-366)
+            day_of_year = date.timetuple().tm_yday
+            # Correctly calculate the week number and day of week
+            week_index = (date.weekday() + (today - date).days) // 7
+            day_of_week = date.weekday() # Monday is 0
 
-            # Apply vertical offset to the y-coordinate
-            y = y_offset + (day_of_week * (SQUARE_SIZE + SQUARE_SPACING))
+            # Today's column is the last one
+            column = num_columns - 1 - week_index
+            
+            x = x_offset + column * (SQUARE_SIZE + SQUARE_SPACING)
+            y = y_offset + day_of_week * (SQUARE_SIZE + SQUARE_SPACING)
 
             value = self.history_data.get(date_str, 0)
             if value == 0:
                 color = QColor("#3c3c3c")
             else:
-                progress = value / max_value
-                green_val = 50 + int(progress * 70)
-                blue_val = 100 + int(progress * 115)
-                color = QColor(0, green_val, blue_val)
+                progress = min(value / max_value, 1.0) # Cap progress at 1.0
+                # Interpolate color from a light blue to a dark blue
+                r = 40
+                g = int(80 + (100 * progress))
+                b = int(150 + (105 * progress))
+                color = QColor(r, g, b)
             
             painter.setBrush(color)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRect(int(x), int(y), SQUARE_SIZE, SQUARE_SIZE)
+            rect = QRect(int(x), int(y), SQUARE_SIZE, SQUARE_SIZE)
+            painter.drawRect(rect)
+            # Store the rect and its corresponding date string for tooltips
+            self.squares_rects[rect] = date_str
             
         # Draw the text information with the vertical offset
         today_str = today.strftime("%Y-%m-%d")
@@ -91,26 +98,16 @@ class HistoryGraph(QWidget):
         painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, display_text)
 
     def mouseMoveEvent(self, event):
-        """Handle tooltips, adjusting for the vertical offset."""
-        today = datetime.now()
-        x, y = event.pos().x(), event.pos().y()
-        total_content_height = GRAPH_HEIGHT + TEXT_AREA_HEIGHT
-        y_offset = (self.height() - total_content_height) / 2
-        if y_offset < 0: y_offset = 0
+        """Handle tooltips by checking if the mouse is inside any cached rect."""
+        pos = event.pos()
+        # Find which square the mouse is over
+        for rect, date_str in self.squares_rects.items():
+            if rect.contains(pos):
+                value_seconds = self.history_data.get(date_str, 0)
+                minutes = value_seconds // 60
+                date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+                self.setToolTip(f"{minutes} minutes on {date_obj.strftime('%B %d, %Y')}")
+                return # Exit after finding the first match
         
-        # Adjust y-coordinate for hit testing
-        adjusted_y = y - y_offset
-        
-        week_ago = (self.width() - x) // (SQUARE_SIZE + SQUARE_SPACING)
-        day_of_week = int(adjusted_y // (SQUARE_SIZE + SQUARE_SPACING))
-        
-        if 0 <= day_of_week <= 6:
-            date = today - timedelta(days=(week_ago * 7 + (today.weekday() - day_of_week)))
-            date_str = date.strftime("%Y-%m-%d")
-            
-            value_seconds = self.history_data.get(date_str, 0)
-            minutes = value_seconds // 60
-            
-            self.setToolTip(f"{minutes} minutes on {date.strftime('%B %d, %Y')}")
-        else:
-            self.setToolTip("")
+        # If no square is found, clear the tooltip
+        self.setToolTip("")
