@@ -13,7 +13,6 @@ from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime, QStandardPaths
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtGui import QIcon, QColor, QPixmap, QPainter
 
-# Importa o módulo do registro do Windows apenas se estiver no Windows
 if platform.system() == "Windows":
     import winreg
 
@@ -45,8 +44,7 @@ def recolor_svg_to_pixmap(svg_path: str, color: QColor, size: QSize) -> QPixmap:
         return QPixmap() # Return empty pixmap on error
 
 MARKER = "# MANAGED BY PYQT-BLOCKER"
-
-# IP de redirecionamento para bloquear sites
+SERVER_BASE_URL = "http://201.23.72.236:5000"
 REDIRECT_IP = "127.0.0.1"
 SERVER_BASE_URL = "http://201.23.72.236:5000"
 DARK_THEME = """
@@ -59,6 +57,9 @@ QPushButton#nav_button[active="true"] { color: #ffffff; border-bottom: 2px solid
 QLineEdit#time_input { background-color: transparent; border: none; color: #f0f0f0; font-size: 40px; font-weight: bold; max-width: 60px; text-align: center; }
 QLabel#time_colon { font-size: 35px; font-weight: bold; color: #f0f0f0; }
 QLabel#title_label { font-size: 16px; font-weight: bold; padding-left: 5px; }
+QLabel#login_title { font-size: 24px; font-weight: bold; padding-bottom: 15px; qproperty-alignment: 'AlignCenter'; }
+QPushButton#primary_button { background-color: #0078d7; font-weight: bold; }
+QPushButton#primary_button:hover { background-color: #008ae6; }
 QPushButton { background-color: #555555; border: 1px solid #777777; padding: 8px; border-radius: 3px; }
 QPushButton:hover { background-color: #6a6a6a; }
 QPushButton#start_button { background-color: #0078d7; font-weight: bold; }
@@ -87,25 +88,21 @@ class BlockerApp(QWidget):
         self.ui.title_label.setText(f"Blocker - Usuário: {self.logged_in_user}")
         
         self._setup_title_bar_icons()
-        
         self.old_pos = None
         self.hosts_path = self.get_hosts_path()
         if platform.system() == "Windows":
             self.helper_path = self.get_helper_path()
             self.previously_blocked_exes = set()
-        
         self.nav_buttons = [
             self.ui.nav_button_timer,
             self.ui.nav_button_lista,
             self.ui.nav_button_estatisticas,
             self.ui.nav_button_rank,
         ]
-        
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_countdown)
         self.total_seconds = 0
         self.end_time = None
-        
         self.connect_signals()
         self.load_initial_state()
         self.reset_timer()
@@ -113,14 +110,13 @@ class BlockerApp(QWidget):
 
     def cleanup_all_blocks(self):
         print(">>> Iniciando limpeza de todas as regras de bloqueio...")
-        self.update_hosts_file([], False, is_cleanup=True)
+        self.update_hosts_file([], is_enabled=False, is_cleanup=True)
         if platform.system() == "Windows":
             for exe in list(self.previously_blocked_exes):
                 self.unblock_executable(exe)
         print(">>> Limpeza concluída.")
 
     def closeEvent(self, event):
-        """Intercepta o evento de fechar a janela para executar a limpeza."""
         self.cleanup_all_blocks()
         event.accept()
 
@@ -160,7 +156,6 @@ class BlockerApp(QWidget):
         self.ui.close_button.setIconSize(QSize(16, 16))
 
     def connect_signals(self):
-        """Conecta os sinais (eventos de clique) dos widgets às suas funções."""
         self.ui.nav_button_timer.clicked.connect(lambda: self.change_tab(0))
         self.ui.nav_button_lista.clicked.connect(lambda: self.change_tab(1))
         self.ui.nav_button_estatisticas.clicked.connect(lambda: self.change_tab(2))
@@ -170,41 +165,36 @@ class BlockerApp(QWidget):
         self.ui.close_button.clicked.connect(self.close)
         self.ui.minimize_button.clicked.connect(self.showMinimized)
         self.ui.maximize_button.clicked.connect(self.toggle_maximize)
-        
         self.ui.apply_button.clicked.connect(self.apply_all_changes)
-        
         self.ui.start_button.clicked.connect(self.start_timer)
         self.ui.reset_button.clicked.connect(self.reset_timer)
-        
         self.ui.add_url_button.clicked.connect(self.add_url_from_input)
         self.ui.remove_url_button.clicked.connect(self.remove_selected_url)
         self.ui.url_input.returnPressed.connect(self.add_url_from_input)
 
     def add_url_from_input(self):
-        """Pega o texto do input, valida, limpa e adiciona à lista visual."""
         url_text = self.ui.url_input.text().strip()
         if not url_text: return
-
         if not url_text.startswith(('http://', 'https://')): url_text = 'http://' + url_text
         try:
             domain = urlparse(url_text).netloc
-            if domain.startswith('www.'): domain = domain[4:]
-            
-            if domain:
+            canonical_domain = domain[4:] if domain.startswith('www.') else domain
+            if canonical_domain:
                 items = [self.ui.website_list_widget.item(i).text() for i in range(self.ui.website_list_widget.count())]
-                if domain not in items:
-                    self.ui.website_list_widget.addItem(domain)
+                if canonical_domain not in items:
+                    self.ui.website_list_widget.addItem(canonical_domain)
                     self.ui.url_input.clear()
+                    self.ui.status_label.setText(f"Status: Domínio '{canonical_domain}' adicionado.")
                 else: self.ui.status_label.setText("Status: Domínio já está na lista.")
             else: self.ui.status_label.setText("Status: URL inválida.")
         except Exception as e: self.ui.status_label.setText(f"Status: Erro ao processar URL - {e}")
 
     def remove_selected_url(self):
-        """Remove o item atualmente selecionado da lista de URLs."""
         list_items = self.ui.website_list_widget.selectedItems()
         if not list_items: return
         for item in list_items:
-            self.ui.website_list_widget.takeItem(self.ui.website_list_widget.row(item))
+            row = self.ui.website_list_widget.row(item)
+            self.ui.website_list_widget.takeItem(row)
 
     def start_timer(self):
         """Starts the timer and ACTIVATES blocking."""
@@ -222,9 +212,7 @@ class BlockerApp(QWidget):
             self.ui.apply_button.setEnabled(False)
 
             self.end_time = QDateTime.currentDateTime().addSecs(self.total_seconds)
-            self.timer.start(16)
-            self.ui.start_button.setEnabled(False)
-            self.ui.circular_timer.set_inputs_visible(False)
+            self.timer.start(16); self.ui.start_button.setEnabled(False); self.ui.circular_timer.set_inputs_visible(False)
 
     def update_countdown(self):
         now = QDateTime.currentDateTime()
@@ -242,7 +230,6 @@ class BlockerApp(QWidget):
             return
         current_seconds_float = remaining_msecs / 1000.0
         self.ui.circular_timer.set_time(self.total_seconds, current_seconds_float)
-
 
     def reset_timer(self):
         """Stops and resets the timer, and DEACTIVATES blocking."""
@@ -265,7 +252,6 @@ class BlockerApp(QWidget):
         self.ui.circular_timer.set_inputs_visible(True)
 
     def change_tab(self, index):
-        """Muda a aba visível e atualiza o estilo dos botões de navegação."""
         self.ui.tabs.setCurrentIndex(index)
         for i, button in enumerate(self.nav_buttons):
             button.setProperty("active", i == index)
@@ -294,6 +280,34 @@ class BlockerApp(QWidget):
         except (FileNotFoundError, json.JSONDecodeError):
             history_data = {}
         self.ui.history_graph.load_history(history_data)
+
+    def get_config_path(self, filename):
+        app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
+        os.makedirs(app_data_path, exist_ok=True)
+        return os.path.join(app_data_path, filename)
+    def save_lists_to_files(self):
+        try:
+            websites_path = self.get_config_path(WEBSITE_CONFIG_FILE)
+            website_list = [self.ui.website_list_widget.item(i).text() for i in range(self.ui.website_list_widget.count())]
+            with open(websites_path, 'w') as f: json.dump(website_list, f)
+            if platform.system() == "Windows":
+                apps_path = self.get_config_path(APP_CONFIG_FILE)
+                with open(apps_path, 'w') as f: f.write(self.ui.app_list_edit.toPlainText())
+            print(">>> Listas de bloqueio salvas.")
+        except Exception as e: print(f"Erro ao salvar listas: {e}")
+    def load_lists_from_files(self):
+        try:
+            websites_path = self.get_config_path(WEBSITE_CONFIG_FILE)
+            if os.path.exists(websites_path):
+                with open(websites_path, 'r') as f:
+                    website_list = json.load(f)
+                    self.ui.website_list_widget.clear(); self.ui.website_list_widget.addItems(website_list)
+            if platform.system() == "Windows":
+                apps_path = self.get_config_path(APP_CONFIG_FILE)
+                if os.path.exists(apps_path):
+                    with open(apps_path, 'r') as f: self.ui.app_list_edit.setText(f.read())
+            print(">>> Listas de bloqueio carregadas.")
+        except Exception as e: print(f"Erro ao carregar listas: {e}")
     
     def save_session_history(self, session_duration_seconds):
         app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
@@ -310,52 +324,61 @@ class BlockerApp(QWidget):
             json.dump(data, f)
         return data
 
+# Em main.py, substitua toda a sua função update_hosts_file por esta:
+
     def update_hosts_file(self, blacklist, is_enabled, is_cleanup=False):
+        """
+        Atualiza o arquivo hosts. Pega cada domínio da blacklist e expande
+        para as versões com e sem 'www.' antes de escrever.
+        """
         try:
             with open(self.hosts_path, 'r') as f:
                 lines = [line for line in f if MARKER not in line]
+            
             if is_enabled:
-                for site in blacklist:
-                    if site.strip():
-                        lines.append(f"{REDIRECT_IP}\t{site.strip()}\t{MARKER}\n")
+                # Cria um conjunto final para evitar duplicatas e guardar as variações
+                final_blacklist = set()
+                
+                # Para cada domínio limpo da lista, gera as duas variações
+                for canonical_domain in blacklist:
+                    domain_stripped = canonical_domain.strip()
+                    if domain_stripped:
+                        final_blacklist.add(domain_stripped)           # Adiciona -> google.com
+                        final_blacklist.add('www.' + domain_stripped)  # Adiciona -> www.google.com
+
+                # Escreve a lista final e expandida no arquivo hosts
+                for site in sorted(list(final_blacklist)):
+                    lines.append(f"{REDIRECT_IP}\t{site}\t{MARKER}\n")
+            
             with open(self.hosts_path, 'w') as f:
                 f.writelines(lines)
-            if not is_cleanup:
+            
+            if not is_cleanup and (is_enabled and blacklist):
                 self.ui.status_label.setText("Status: Lista de bloqueio atualizada!")
                 self.ui.status_label.setStyleSheet("color: green;")
                 self.flush_dns()
         except Exception as e:
             self.ui.status_label.setText(f"Hosts Error: {e}. Execute como Admin.")
             self.ui.status_label.setStyleSheet("color: red;")
-            
+                  
     def update_exe_blocks(self, blacklist, is_enabled):
-        """Atualiza o Registro do Windows para bloquear/desbloquear executáveis."""
         try:
             current_blacklist = {exe.strip().lower() for exe in blacklist if exe.strip()}
             to_unblock = self.previously_blocked_exes - current_blacklist
-            for exe in to_unblock:
-                self.unblock_executable(exe)
-            
+            for exe in to_unblock: self.unblock_executable(exe)
             if is_enabled:
                 to_block = current_blacklist
-                for exe in to_block:
-                    self.block_executable(exe)
+                for exe in to_block: self.block_executable(exe)
             else:
-                to_block = set()
-                for exe in self.previously_blocked_exes:
-                    self.unblock_executable(exe)
-            
+                to_block = set();
+                for exe in self.previously_blocked_exes: self.unblock_executable(exe)
             self.previously_blocked_exes = to_block if is_enabled else set()
-            
-            if not self.ui.website_list_widget.count() > 0:
-                 self.ui.status_label.setText("Status: Lista de bloqueio atualizada!")
-                 self.ui.status_label.setStyleSheet("color: green;")
-        except Exception as e:
-            self.ui.status_label.setText(f"App Block Error: {e}. Run as Admin.")
-            self.ui.status_label.setStyleSheet("color: red;")
-
+            if not self.ui.website_list_widget.count() > 0 and is_enabled: self.ui.status_label.setText("Status: Lista de bloqueio atualizada!"); self.ui.status_label.setStyleSheet("color: #55ff7f;")
+        except PermissionError: self.ui.status_label.setText("App Block Error: Acesso negado. Execute como Admin."); self.ui.status_label.setStyleSheet("color: #ff5555;")
+        except Exception as e: self.ui.status_label.setText(f"App Block Error: {e}"); self.ui.status_label.setStyleSheet("color: #ff5555;")
     def load_exe_block_state(self):
-        key_path = r"Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"; blocked_exes = set()
+        key_path = r"Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
+        blocked_exes = set()
         try:
             with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as base_key:
                 i = 0
@@ -367,53 +390,34 @@ class BlockerApp(QWidget):
                             if self.helper_path in debugger_val: blocked_exes.add(exe_name)
                         i += 1
                     except OSError: break
-            self.app_list_edit.setText('\n'.join(sorted(list(blocked_exes))))
+            self.ui.app_list_edit.setText('\n'.join(sorted(list(blocked_exes))))
             self.previously_blocked_exes = blocked_exes
         except FileNotFoundError: pass
         except Exception as e: print(f"Could not load EXE state: {e}")
-
-
     def block_executable(self, exe_name):
-        """Cria uma chave no Registro para interceptar a execução de um .exe."""
         try:
             key_path = fr"Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\{exe_name}"
             with winreg.CreateKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:
                 debugger_command = f'"{sys.executable}" "{self.helper_path}"'
                 winreg.SetValueEx(key, "Debugger", 0, winreg.REG_SZ, debugger_command)
-        except Exception as e:
-            print(f"Error blocking {exe_name}: {e}")
-
-
+        except Exception as e: print(f"Error blocking {exe_name}: {e}")
     def unblock_executable(self, exe_name):
-        """Remove a chave do Registro que bloqueia a execução de um .exe."""
         try:
             key_path = fr"Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\{exe_name}"
             winreg.DeleteKey(winreg.HKEY_LOCAL_MACHINE, key_path)
-            # Remove from previously_blocked_exes if it exists
             self.previously_blocked_exes.discard(exe_name)
-        except Exception as e:
-            if not isinstance(e, FileNotFoundError):
-                print(f"Error unblocking {exe_name}: {e}")
-
+        except FileNotFoundError: pass
+        except Exception as e: print(f"Error unblocking {exe_name}: {e}")
     def flush_dns(self):
-        """Limpa o cache de DNS do sistema operacional."""
         os_name = platform.system()
-        if os_name == "Windows":
-            os.system("ipconfig /flushdns")
-        elif os_name == "Linux":
-            # Comando comum para sistemas que usam systemd-resolved (como Ubuntu)
-            print(">>> Limpando cache de DNS do Linux...")
-            os.system("sudo systemd-resolve --flush-caches")
-            print(">>> Cache de DNS limpo.")
-
+        if os_name == "Windows": os.system("ipconfig /flushdns > NUL 2>&1")
+        elif os_name == "Linux": print(">>> Flushing Linux DNS cache..."); os.system("sudo systemd-resolve --flush-caches"); print(">>> DNS cache flushed.")
     def get_hosts_path(self):
-        """Retorna o caminho do arquivo hosts dependendo do SO."""
-        return r"C:\Windows\System32\drivers\etc\hosts" if platform.system() == "Windows" else "/etc/hosts"
-
+        if platform.system() == "Windows": return r"C:\Windows\System32\drivers\etc\hosts"
+        else: return "/etc/hosts"
     def get_helper_path(self):
-        """Retorna o caminho absoluto para o script auxiliar de bloqueio."""
-        return os.path.abspath(os.path.join(os.path.dirname(__file__), 'blocker_helper.pyw'))
-
+        script_dir = os.path.dirname(__file__)
+        return os.path.abspath(os.path.join(script_dir, 'blocker_helper.pyw'))
     def toggle_maximize(self):
         """Alterna entre janela maximizada e normal."""
         if self.isMaximized():
@@ -422,10 +426,7 @@ class BlockerApp(QWidget):
             self.showMaximized()
             
     def mousePressEvent(self, event):
-        """Captura o clique do mouse na barra de título para iniciar o arraste."""
-        if event.button() == Qt.MouseButton.LeftButton and self.ui.title_bar.underMouse():
-            self.old_pos = event.globalPosition().toPoint()
-
+        if event.button() == Qt.MouseButton.LeftButton and self.ui.title_bar.underMouse(): self.old_pos = event.globalPosition().toPoint()
     def mouseMoveEvent(self, event):
         """Move a janela se o mouse estiver sendo arrastado."""
         if self.old_pos:
