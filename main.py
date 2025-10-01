@@ -1,6 +1,7 @@
 # main.py
 import sys
 import os
+import time
 import platform
 import json
 import atexit
@@ -12,7 +13,7 @@ from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime, QStandardPaths
 from PyQt6.QtGui import QIcon, QColor
 import uuid
 
-SERVER_BASE_URL = "http://localhost:5050" # Or your server's IP address
+SERVER_BASE_URL = "http://localhost:5000" # Or your server's IP address
 
 # Importa o módulo do registro do Windows apenas se estiver no Windows
 if platform.system() == "Windows":
@@ -144,22 +145,45 @@ class BlockerApp(QWidget):
         self.ui.room_input.setEnabled(True)
         self.ui.sync_status_label.setText("Desconectado")
 
-    def poll_server_status(self):
-        if not self.synced_session_active or not self.current_room:
+    def sync_and_start_local_timer(self, room_data):
+        """Starts the local timer based on authoritative data from the server."""
+        synced_duration = room_data.get("duration_seconds")
+        started_at = room_data.get("started_at")
+
+        if synced_duration is None or started_at is None:
             return
 
+        # Calculate how much time has passed since the server started the session
+        elapsed_since_start = time.time() - started_at
+        remaining_seconds = synced_duration - elapsed_since_start
+
+        if remaining_seconds > 0:
+            self.total_seconds = synced_duration
+            self.end_time = QDateTime.currentDateTime().addSecs(int(remaining_seconds))
+            self.timer.start(16)
+            
+            # Update UI state
+            self.ui.sync_status_label.setText("Sessão em andamento!")
+            self.ui.start_button.setEnabled(False)
+            self.ui.circular_timer.set_inputs_visible(False)
+
+    def poll_server_status(self):
+        if not self.synced_session_active or not self.current_room: return
         try:
             response = requests.get(f"{SERVER_BASE_URL}/room_status", params={"room_name": self.current_room})
             if response.status_code == 200:
                 room_data = response.json()
-                if room_data.get("status") == "cancelled" and room_data.get("cancelled_by") != self.user_id:
-                    self.ui.sync_status_label.setText(f"Sessão cancelada pelo parceiro!")
-                    self.reset_timer() # This will stop our timer
+                
+                # --- THIS IS THE KEY LOGIC FOR THE WAITING USER ---
+                # If the server says the room is running, but our timer isn't, start it.
+                if room_data.get("status") == "running" and not self.timer.isActive():
+                    self.sync_and_start_local_timer(room_data)
+
+                elif room_data.get("status") == "cancelled" and room_data.get("cancelled_by") != self.user_id:
+                    self.ui.sync_status_label.setText("Sessão cancelada pelo parceiro!")
+                    self.reset_timer()
                     self.disconnect_from_synced_session()
-                elif room_data.get("status") == "running":
-                    self.ui.sync_status_label.setText("Sessão em andamento!")
-                elif len(room_data.get("users", [])) == 2:
-                     self.ui.sync_status_label.setText("Parceiro conectado. Inicie o timer!")
+                # ... (other status updates)
             else:
                 self.disconnect_from_synced_session()
         except requests.RequestException:
@@ -246,24 +270,43 @@ class BlockerApp(QWidget):
             self.ui.website_list_widget.takeItem(self.ui.website_list_widget.row(item))
 
     def start_timer(self):
-        """Inicia o temporizador com o tempo definido nos campos de entrada."""
+        """Initiates a standalone or synced timer session."""
         hours = int(self.ui.circular_timer.hour_input.text() or 0)
         minutes = int(self.ui.circular_timer.minute_input.text() or 0)
         seconds = int(self.ui.circular_timer.second_input.text() or 0)
         self.total_seconds = (hours * 3600) + (minutes * 60) + seconds
         
-        if self.total_seconds > 0:
+        if self.total_seconds <= 0:
+            return
+
+        # If in a synced session, just notify the server.
+        # The polling mechanism will actually start the timer for both users.
+        if self.synced_session_active and self.current_room:
+            self.ui.sync_status_label.setText("Aguardando parceiro iniciar...")
+            self.ui.start_button.setEnabled(False)
+            self.ui.circular_timer.set_inputs_visible(False)
+            
+            payload = {
+                "room_name": self.current_room,
+                "user_id": self.user_id,
+                "duration_seconds": self.total_seconds
+            }
+            try:
+                # The server response will tell us if the session starts now
+                response = requests.post(f"{SERVER_BASE_URL}/start_timer", json=payload)
+                if response.status_code == 200:
+                    room_data = response.json()
+                    # If our click was the one that started the session, sync immediately
+                    if room_data.get("status") == "running" and not self.timer.isActive():
+                        self.sync_and_start_local_timer(room_data)
+            except requests.RequestException:
+                self.ui.sync_status_label.setText("Erro ao iniciar timer no servidor.")
+        else:
+            # Standalone timer logic (unchanged)
             self.end_time = QDateTime.currentDateTime().addSecs(self.total_seconds)
             self.timer.start(16)
             self.ui.start_button.setEnabled(False)
             self.ui.circular_timer.set_inputs_visible(False)
-        
-        if self.synced_session_active and self.current_room:
-            payload = {"room_name": self.current_room, "user_id": self.user_id}
-            try:
-                requests.post(f"{SERVER_BASE_URL}/start_timer", json=payload)
-            except requests.RequestException:
-                self.ui.sync_status_label.setText("Erro ao iniciar timer no servidor.")
 
     def update_countdown(self):
         """Chamado pelo QTimer para atualizar o tempo restante e o círculo."""

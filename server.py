@@ -1,10 +1,12 @@
 # server.py
 from flask import Flask, request, jsonify
 from threading import Lock
+import time
+
+MAX_CONNECTIONS = 2
 
 app = Flask(__name__)
 
-# In-memory storage for rooms. In a real app, you'd use a database.
 rooms = {}
 lock = Lock()
 
@@ -18,20 +20,20 @@ def join_room():
         if room_name not in rooms:
             rooms[room_name] = {
                 "users": set(),
-                "status": "waiting", # waiting, running, cancelled
+                "status": "waiting",
                 "timers_started": {},
-                "cancelled_by": None
+                "cancelled_by": None,
+                "duration_seconds": None, # ADDED: To store the session duration
+                "started_at": None       # ADDED: To store the universal start time
             }
         
         room = rooms[room_name]
-        if len(room["users"]) < 2 or user_id in room["users"]:
+        if len(room["users"]) < MAX_CONNECTIONS or user_id in room["users"]:
             room["users"].add(user_id)
             room["timers_started"][user_id] = False
         else:
             return jsonify({"error": "Room is full"}), 409
 
-    #return jsonify(rooms[room_name], users=list(rooms[room_name]["users"]))
-    # Correct approach
     response_data = rooms[room_name].copy()
     response_data["users"] = list(rooms[room_name]["users"])
     return jsonify(response_data)
@@ -41,27 +43,36 @@ def start_timer():
     data = request.json
     room_name = data.get('room_name')
     user_id = data.get('user_id')
+    duration_seconds = data.get('duration_seconds')
 
     with lock:
         if room_name in rooms and user_id in rooms[room_name]["users"]:
-            rooms[room_name]["timers_started"][user_id] = True
-            # If all users have started, set the room to running
-            if all(rooms[room_name]["timers_started"].values()):
-                rooms[room_name]["status"] = "running"
+            room = rooms[room_name]
+            room["timers_started"][user_id] = True
+            
+            # The first user to start sets the duration for the room
+            if room["duration_seconds"] is None:
+                room["duration_seconds"] = duration_seconds
+            
+            # If all users have now started, officially begin the session
+            if len(room["users"]) == MAX_CONNECTIONS and all(room["timers_started"].values()):
+                room["status"] = "running"
+                room["started_at"] = time.time() # Record universal start time
     
-    return jsonify(rooms.get(room_name, {})), 200
+    response_data = rooms.get(room_name, {}).copy()
+    response_data["users"] = list(response_data.get("users", set()))
+    return jsonify(response_data), 200
 
+# ... (The /cancel_timer and /room_status endpoints remain the same) ...
 @app.route('/cancel_timer', methods=['POST'])
 def cancel_timer():
     data = request.json
     room_name = data.get('room_name')
     user_id = data.get('user_id')
-
     with lock:
         if room_name in rooms:
             rooms[room_name]["status"] = "cancelled"
             rooms[room_name]["cancelled_by"] = user_id
-    
     return jsonify({"message": "Session cancelled"}), 200
 
 @app.route('/room_status', methods=['GET'])
@@ -70,11 +81,10 @@ def room_status():
     with lock:
         room_data = rooms.get(room_name)
         if room_data:
-            # Create a serializable copy
             serializable_data = room_data.copy()
             serializable_data["users"] = list(room_data["users"])
             return jsonify(serializable_data)
     return jsonify({"error": "Room not found"}), 404
-    
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5050)
+    app.run(host='0.0.0.0', port=5000)
