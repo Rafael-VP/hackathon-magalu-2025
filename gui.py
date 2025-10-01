@@ -1,18 +1,27 @@
 # gui.py
 import requests
+import math
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit,
     QPushButton, QCheckBox, QApplication, QTabWidget,
     QLineEdit, QListWidget, QDialog, QFormLayout
 )
-from PyQt6.QtGui import QScreen, QPainter, QColor, QPen, QFont, QIntValidator
-from PyQt6.QtCore import Qt, QRectF, QTimer
+from PyQt6.QtGui import QScreen, QPainter, QColor, QPen, QFont, QIntValidator, QPixmap, QIcon
+from PyQt6.QtCore import Qt, QRectF, QTimer, QSize
 from history_graph import HistoryGraph
 
 SERVER_BASE_URL = "http://201.23.72.236:5000"
 
+def recolor_icon(icon: QIcon, color: QColor) -> QIcon:
+    pixmap = icon.pixmap(QSize(256, 256))
+    mask = pixmap.mask()
+    pixmap.fill(color)
+    pixmap.setMask(mask)
+    return QIcon(pixmap)
+
 
 class LoginDialog(QDialog):
+    # ... (this class is unchanged)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Login")
@@ -69,6 +78,7 @@ class LoginDialog(QDialog):
             self.login_button.setEnabled(True)
 
 class RegisterDialog(QDialog):
+    # ... (this class is unchanged)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Criar Novo Usuário")
@@ -136,6 +146,22 @@ class CircularTimerWidget(QWidget):
         super().__init__(parent)
         self.total_seconds = 0
         self.current_seconds_float = 0.0
+        self.rotation_angle = 0
+
+        # <<< CHANGE START: Store colors and base icon, not a pre-colored pixmap >>>
+        self.start_color = QColor("#3C3C3C")  # Dark grey
+        self.end_color = QColor("#0078d7")    # Blue
+        try:
+            self.base_hourglass_icon = QIcon("hourglass.png")
+        except Exception as e:
+            print(f"Could not load hourglass.png: {e}")
+            self.base_hourglass_icon = None
+        # <<< CHANGE END >>>
+        
+        self.animation_timer = QTimer(self)
+        self.animation_timer.timeout.connect(self._update_rotation)
+        self.animation_timer.start(50)
+
         self.hour_input = QLineEdit("00")
         self.hour_input.setObjectName("time_input")
         self.hour_input.setValidator(QIntValidator(0, 99))
@@ -164,6 +190,11 @@ class CircularTimerWidget(QWidget):
         main_layout.addStretch()
         self.input_widgets = [self.hour_input, self.minute_input, self.second_input, colon1, colon2]
 
+    def _update_rotation(self):
+        if not self.hour_input.isVisible():
+            self.rotation_angle = (self.rotation_angle + 3) % 360
+            self.update()
+
     def set_time(self, total_seconds, current_seconds_float):
         self.total_seconds = total_seconds
         self.current_seconds_float = current_seconds_float
@@ -172,6 +203,8 @@ class CircularTimerWidget(QWidget):
     def set_inputs_visible(self, visible):
         for widget in self.input_widgets:
             widget.setVisible(visible)
+        if visible:
+            self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -180,18 +213,47 @@ class CircularTimerWidget(QWidget):
         side = min(rect.width(), rect.height())
         margin = 15
         drawing_rect = QRectF((rect.width() - side) / 2 + margin, (rect.height() - side) / 2 + margin, side - 2 * margin, side - 2 * margin)
+        
         bg_pen = QPen(QColor("#3c3c3c"), 12, Qt.PenStyle.SolidLine)
         painter.setPen(bg_pen)
         painter.drawEllipse(drawing_rect)
+
+        progress_ratio = 0
         if self.total_seconds > 0:
             progress_pen = QPen(QColor("#0078d7"), 14, Qt.PenStyle.SolidLine)
             painter.setPen(progress_pen)
             elapsed_seconds = self.total_seconds - self.current_seconds_float
-            progress_ratio = elapsed_seconds / self.total_seconds if self.total_seconds > 0 else 0
+            progress_ratio = elapsed_seconds / self.total_seconds
             arc_angle = progress_ratio * 360
             start_angle = 90 * 16
             span_angle = -int(arc_angle * 16)
             painter.drawArc(drawing_rect, start_angle, span_angle)
+
+        # <<< CHANGE START: Calculate color and recolor the icon in every frame >>>
+        if self.base_hourglass_icon:
+            # Interpolate color based on progress_ratio
+            r1, g1, b1, _ = self.start_color.getRgb()
+            r2, g2, b2, _ = self.end_color.getRgb()
+            r = r1 + (r2 - r1) * progress_ratio
+            g = g1 + (g2 - g1) * progress_ratio
+            b = b1 + (b2 - b1) * progress_ratio
+            current_color = QColor(int(r), int(g), int(b))
+            
+            # Recolor the base icon with the new color for this frame
+            current_colored_icon = recolor_icon(self.base_hourglass_icon, current_color)
+            current_pixmap = current_colored_icon.pixmap(QSize(256, 256))
+
+            # Draw the newly colored icon
+            painter.save()
+            angle_to_use = self.rotation_angle if not self.hour_input.isVisible() else 0
+            icon_size = drawing_rect.width() * 0.8
+            icon_rect = QRectF(-icon_size / 2, -icon_size / 2, icon_size, icon_size)
+            painter.translate(drawing_rect.center())
+            painter.rotate(angle_to_use)
+            painter.drawPixmap(icon_rect.toRect(), current_pixmap)
+            painter.restore()
+        # <<< CHANGE END >>>
+        
         if not self.hour_input.isVisible():
             current_seconds_int = int(self.current_seconds_float) + 1 if self.current_seconds_float > 0 else 0
             hours = current_seconds_int // 3600
@@ -210,6 +272,7 @@ class CircularTimerWidget(QWidget):
             painter.drawText(drawing_rect, Qt.AlignmentFlag.AlignCenter, time_text)
 
 class Ui_BlockerApp(object):
+    # ... (this class is unchanged)
     def setupUi(self, main_window):
         main_window.setWindowTitle('PyQt System Blocker')
         screen = QScreen.availableGeometry(QApplication.primaryScreen())
@@ -246,7 +309,6 @@ class Ui_BlockerApp(object):
         title_bar_layout.addWidget(self.close_button)
         self.main_layout.addWidget(self.title_bar)
         
-        # --- Barra de Navegação ---
         self.nav_bar = QWidget()
         self.nav_bar.setObjectName("nav_bar")
         self.nav_bar.setFixedHeight(50)
@@ -278,7 +340,6 @@ class Ui_BlockerApp(object):
         self.tabs = QTabWidget()
         self.tabs.tabBar().setVisible(False)
         
-        # Página 1: Timer (Index 0)
         timer_page = QWidget()
         timer_page_layout = QVBoxLayout(timer_page)
         self.circular_timer = CircularTimerWidget()
@@ -295,7 +356,6 @@ class Ui_BlockerApp(object):
         timer_page_layout.addLayout(timer_button_layout)
         self.tabs.addTab(timer_page, "Timer")
 
-        # Página 2: Lista (Index 1)
         list_page = QWidget()
         list_page_layout = QVBoxLayout(list_page)
         list_page_layout.setContentsMargins(0, 10, 0, 0)
@@ -325,14 +385,12 @@ class Ui_BlockerApp(object):
         list_page_layout.addWidget(self.apply_button)
         self.tabs.addTab(list_page, "Lista")
 
-        # Página 3: Estatísticas (Index 2)
         history_tab = QWidget()
         history_layout = QVBoxLayout(history_tab)
         self.history_graph = HistoryGraph()
         history_layout.addWidget(self.history_graph)
         self.tabs.addTab(history_tab, "Estatísticas")
 
-        # Página 4: Rank (Index 3)
         rank_tab = QWidget()
         rank_tab.setLayout(QVBoxLayout())
         rank_tab.layout().addWidget(QLabel("Página de Rank"))
