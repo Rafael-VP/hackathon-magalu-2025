@@ -1,17 +1,23 @@
 # main.py
 import sys
 import os
+import time
 import requests
 import platform
 import json
 import atexit
+import uuid
 from datetime import datetime
 from urllib.parse import urlparse
 from PyQt6.QtWidgets import (QApplication, QWidget, QStyle, QDialog, QLineEdit,
                              QPushButton, QLabel, QFormLayout, QHBoxLayout, QVBoxLayout)
 from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime, QStandardPaths
-from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtGui import QIcon, QColor, QPixmap, QPainter
+from PyQt6.QtSvg import QSvgRenderer
+
+
+SERVER_BASE_URL = "http://localhost:5000" # Or your server's IP address
+
 
 if platform.system() == "Windows":
     import winreg
@@ -103,10 +109,103 @@ class BlockerApp(QWidget):
         self.timer.timeout.connect(self.update_countdown)
         self.total_seconds = 0
         self.end_time = None
+
+        self.user_id = str(uuid.uuid4()) # Generate a unique ID for this user session
+        self.synced_session_active = False
+        self.current_room = None
+        
+        self.sync_timer = QTimer(self)
+        self.sync_timer.timeout.connect(self.poll_server_status)
+        
+        self.ui.connect_button.clicked.connect(self.connect_to_synced_session)
+        self.ui.disconnect_button.clicked.connect(self.disconnect_from_synced_session)
+
         self.connect_signals()
         self.load_initial_state()
         self.reset_timer()
         self.change_tab(0)
+        # Removido o self.show() daqui para ser chamado no bloco __main__
+        
+    
+    def connect_to_synced_session(self):
+        print("test")
+        room_name = self.ui.room_input.text().strip()
+        if not room_name:
+            self.ui.sync_status_label.setText("Nome da sala é obrigatório.")
+            return
+
+        self.current_room = room_name
+        payload = {"room_name": self.current_room, "user_id": self.user_id}
+        try:
+            response = requests.post(f"{SERVER_BASE_URL}/join_room", json=payload)
+            if response.status_code == 200:
+                self.synced_session_active = True
+                self.ui.connect_button.setEnabled(False)
+                self.ui.disconnect_button.setEnabled(True)
+                self.ui.room_input.setEnabled(False)
+                self.sync_timer.start(3000) # Poll every 3 seconds
+                self.ui.sync_status_label.setText("Aguardando parceiro...")
+            else:
+                self.ui.sync_status_label.setText(f"Erro: {response.json().get('error', 'Desconhecido')}")
+        except requests.RequestException:
+            self.ui.sync_status_label.setText("Erro de conexão.")
+
+
+    def disconnect_from_synced_session(self):
+        # In a real app, you'd notify the server you are leaving.
+        # For this prototype, we just stop polling.
+        self.sync_timer.stop()
+        self.synced_session_active = False
+        self.current_room = None
+        self.ui.connect_button.setEnabled(True)
+        self.ui.disconnect_button.setEnabled(False)
+        self.ui.room_input.setEnabled(True)
+        self.ui.sync_status_label.setText("Desconectado")
+
+    def sync_and_start_local_timer(self, room_data):
+        """Starts the local timer based on authoritative data from the server."""
+        synced_duration = room_data.get("duration_seconds")
+        started_at = room_data.get("started_at")
+
+        if synced_duration is None or started_at is None:
+            return
+
+        # Calculate how much time has passed since the server started the session
+        elapsed_since_start = time.time() - started_at
+        remaining_seconds = synced_duration - elapsed_since_start
+
+        if remaining_seconds > 0:
+            self.total_seconds = synced_duration
+            self.end_time = QDateTime.currentDateTime().addSecs(int(remaining_seconds))
+            self.timer.start(16)
+            
+            # Update UI state
+            self.ui.sync_status_label.setText("Sessão em andamento!")
+            self.ui.start_button.setEnabled(False)
+            self.ui.circular_timer.set_inputs_visible(False)
+
+    def poll_server_status(self):
+        if not self.synced_session_active or not self.current_room: return
+        try:
+            response = requests.get(f"{SERVER_BASE_URL}/room_status", params={"room_name": self.current_room})
+            if response.status_code == 200:
+                room_data = response.json()
+                
+                # --- THIS IS THE KEY LOGIC FOR THE WAITING USER ---
+                # If the server says the room is running, but our timer isn't, start it.
+                if room_data.get("status") == "running" and not self.timer.isActive():
+                    self.sync_and_start_local_timer(room_data)
+
+                elif room_data.get("status") == "cancelled" and room_data.get("cancelled_by") != self.user_id:
+                    self.ui.sync_status_label.setText("Sessão cancelada pelo parceiro!")
+                    self.reset_timer()
+                    self.disconnect_from_synced_session()
+                # ... (other status updates)
+            else:
+                self.disconnect_from_synced_session()
+        except requests.RequestException:
+            self.ui.sync_status_label.setText("Conexão perdida.")
+            self.disconnect_from_synced_session()
 
     def cleanup_all_blocks(self):
         print(">>> Iniciando limpeza de todas as regras de bloqueio...")
@@ -168,51 +267,53 @@ class BlockerApp(QWidget):
         self.ui.apply_button.clicked.connect(self.apply_all_changes)
         self.ui.start_button.clicked.connect(self.start_timer)
         self.ui.reset_button.clicked.connect(self.reset_timer)
-        self.ui.add_url_button.clicked.connect(self.add_url_from_input)
-        self.ui.remove_url_button.clicked.connect(self.remove_selected_url)
-        self.ui.url_input.returnPressed.connect(self.add_url_from_input)
 
-    def add_url_from_input(self):
-        url_text = self.ui.url_input.text().strip()
-        if not url_text: return
-        if not url_text.startswith(('http://', 'https://')): url_text = 'http://' + url_text
-        try:
-            domain = urlparse(url_text).netloc
-            canonical_domain = domain[4:] if domain.startswith('www.') else domain
-            if canonical_domain:
-                items = [self.ui.website_list_widget.item(i).text() for i in range(self.ui.website_list_widget.count())]
-                if canonical_domain not in items:
-                    self.ui.website_list_widget.addItem(canonical_domain)
-                    self.ui.url_input.clear()
-                    self.ui.status_label.setText(f"Status: Domínio '{canonical_domain}' adicionado.")
-                else: self.ui.status_label.setText("Status: Domínio já está na lista.")
-            else: self.ui.status_label.setText("Status: URL inválida.")
-        except Exception as e: self.ui.status_label.setText(f"Status: Erro ao processar URL - {e}")
-
-    def remove_selected_url(self):
-        list_items = self.ui.website_list_widget.selectedItems()
-        if not list_items: return
-        for item in list_items:
-            row = self.ui.website_list_widget.row(item)
-            self.ui.website_list_widget.takeItem(row)
 
     def start_timer(self):
-        """Starts the timer and ACTIVATES blocking."""
+        """Initiates a standalone or synced timer session."""
         hours = int(self.ui.circular_timer.hour_input.text() or 0)
         minutes = int(self.ui.circular_timer.minute_input.text() or 0)
         seconds = int(self.ui.circular_timer.second_input.text() or 0)
         self.total_seconds = (hours * 3600) + (minutes * 60) + seconds
+        
+        if self.total_seconds <= 0:
+            return
 
-        if self.total_seconds > 0:
-            # Enable blocking and apply the changes
-            self.ui.enable_checkbox.setChecked(True)
-            self.apply_all_changes()
-            self.ui.status_label.setText("Status: Focus session started!")
-            self.ui.enable_checkbox.setEnabled(False)
-            self.ui.apply_button.setEnabled(False)
+        # If in a synced session, just notify the server.
+        # The polling mechanism will actually start the timer for both users.
+        if self.synced_session_active and self.current_room:
+            self.ui.sync_status_label.setText("Aguardando parceiro iniciar...")
+            self.ui.start_button.setEnabled(False)
+            self.ui.circular_timer.set_inputs_visible(False)
+            
+            payload = {
+                "room_name": self.current_room,
+                "user_id": self.user_id,
+                "duration_seconds": self.total_seconds
+            }
+            try:
+                # The server response will tell us if the session starts now
+                response = requests.post(f"{SERVER_BASE_URL}/start_timer", json=payload)
+                if response.status_code == 200:
+                    room_data = response.json()
+                    # If our click was the one that started the session, sync immediately
+                    if room_data.get("status") == "running" and not self.timer.isActive():
+                        self.sync_and_start_local_timer(room_data)
+            except requests.RequestException:
+                self.ui.sync_status_label.setText("Erro ao iniciar timer no servidor.")
+        else:
+            # Standalone timer logic (unchanged)
 
-            self.end_time = QDateTime.currentDateTime().addSecs(self.total_seconds)
-            self.timer.start(16); self.ui.start_button.setEnabled(False); self.ui.circular_timer.set_inputs_visible(False)
+            if self.total_seconds > 0:
+                # Enable blocking and apply the changes
+                self.ui.enable_checkbox.setChecked(True)
+                self.apply_all_changes()
+                self.ui.status_label.setText("Status: Focus session started!")
+                self.ui.enable_checkbox.setEnabled(False)
+                self.ui.apply_button.setEnabled(False)
+
+                self.end_time = QDateTime.currentDateTime().addSecs(self.total_seconds)
+                self.timer.start(16); self.ui.start_button.setEnabled(False); self.ui.circular_timer.set_inputs_visible(False)
 
     def update_countdown(self):
         now = QDateTime.currentDateTime()
@@ -250,6 +351,14 @@ class BlockerApp(QWidget):
         self.ui.circular_timer.set_time(self.total_seconds, self.total_seconds)
         self.ui.start_button.setEnabled(True)
         self.ui.circular_timer.set_inputs_visible(True)
+    
+        if self.synced_session_active and self.current_room: #and self.timer.isActive():
+            payload = {"room_name": self.current_room, "user_id": self.user_id}
+            try:
+                requests.post(f"{SERVER_BASE_URL}/cancel_timer", json=payload)
+            except requests.RequestException:
+                self.ui.sync_status_label.setText("Erro ao cancelar no servidor.")
+            self.disconnect_from_synced_session()
 
     def change_tab(self, index):
         self.ui.tabs.setCurrentIndex(index)
@@ -259,7 +368,9 @@ class BlockerApp(QWidget):
             
     def apply_all_changes(self):
         is_enabled = self.ui.enable_checkbox.isChecked()
-        website_list = [self.ui.website_list_widget.item(i).text() for i in range(self.ui.website_list_widget.count())]
+        # --- ALTERAÇÃO AQUI ---
+        website_list = self.ui.website_list_edit.toPlainText().split('\n')
+        # --- FIM DA ALTERAÇÃO ---
         self.update_hosts_file(website_list, is_enabled)
         if platform.system() == "Windows":
             self.update_exe_blocks(self.ui.app_list_edit.toPlainText().split('\n'), is_enabled)
@@ -267,7 +378,9 @@ class BlockerApp(QWidget):
     def load_initial_state(self):
         self.cleanup_all_blocks()
         self.ui.status_label.setText("Status: Pronto para iniciar.")
-        self.ui.website_list_widget.clear()
+        # --- ALTERAÇÃO AQUI ---
+        self.ui.website_list_edit.setText("")
+        # --- FIM DA ALTERAÇÃO ---
         if platform.system() == "Windows":
             self.ui.app_list_edit.setText("")
             self.load_exe_block_state()
@@ -373,9 +486,16 @@ class BlockerApp(QWidget):
                 to_block = set();
                 for exe in self.previously_blocked_exes: self.unblock_executable(exe)
             self.previously_blocked_exes = to_block if is_enabled else set()
-            if not self.ui.website_list_widget.count() > 0 and is_enabled: self.ui.status_label.setText("Status: Lista de bloqueio atualizada!"); self.ui.status_label.setStyleSheet("color: #55ff7f;")
-        except PermissionError: self.ui.status_label.setText("App Block Error: Acesso negado. Execute como Admin."); self.ui.status_label.setStyleSheet("color: #ff5555;")
-        except Exception as e: self.ui.status_label.setText(f"App Block Error: {e}"); self.ui.status_label.setStyleSheet("color: #ff5555;")
+            
+            # --- ALTERAÇÃO AQUI ---
+            if not self.ui.website_list_edit.toPlainText().strip():
+                 self.ui.status_label.setText("Status: Lista de bloqueio atualizada!")
+                 self.ui.status_label.setStyleSheet("color: green;")
+            # --- FIM DA ALTERAÇÃO ---
+        except Exception as e:
+            self.ui.status_label.setText(f"App Block Error: {e}. Run as Admin.")
+            self.ui.status_label.setStyleSheet("color: red;")
+
     def load_exe_block_state(self):
         key_path = r"Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
         blocked_exes = set()

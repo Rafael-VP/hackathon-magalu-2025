@@ -530,6 +530,24 @@ class Ui_BlockerApp(object):
         timer_page_layout = QVBoxLayout(timer_page)
         self.circular_timer = CircularTimerWidget()
         timer_button_layout = QHBoxLayout()
+        # --- NEW: Synced Session Controls ---
+        line = QWidget(); line.setFixedHeight(1); line.setStyleSheet("background-color: #555;")
+        timer_page_layout.addWidget(line)
+
+        sync_layout = QHBoxLayout()
+        sync_layout.setContentsMargins(0, 10, 0, 0)
+        self.room_input = QLineEdit()
+        self.room_input.setPlaceholderText("Nome da Sala")
+        self.connect_button = QPushButton("Conectar à Sala")
+        self.disconnect_button = QPushButton("Desconectar")
+        self.sync_status_label = QLabel("Desconectado")
+
+        sync_layout.addWidget(self.room_input)
+        sync_layout.addWidget(self.connect_button)
+        sync_layout.addWidget(self.disconnect_button)
+        sync_layout.addStretch()
+        sync_layout.addWidget(self.sync_status_label)
+        timer_page_layout.addLayout(sync_layout)
         self.start_button = QPushButton("Start")
         self.start_button.setObjectName("start_button")
         self.reset_button = QPushButton("Reset")
@@ -546,24 +564,18 @@ class Ui_BlockerApp(object):
         list_page_layout = QVBoxLayout(list_page)
         list_page_layout.setContentsMargins(0, 10, 0, 0)
         list_page_layout.setSpacing(10)
-        list_page_layout.addWidget(QLabel('Enter URL to block:'))
-        add_url_layout = QHBoxLayout()
-        self.url_input = QLineEdit()
-        self.url_input.setPlaceholderText("Ex: google.com")
-        self.add_url_button = QPushButton("Adicionar")
-        add_url_layout.addWidget(self.url_input)
-        add_url_layout.addWidget(self.add_url_button)
-        list_page_layout.addLayout(add_url_layout)
-        self.website_list_widget = QListWidget()
-        self.remove_url_button = QPushButton("Remover Selecionado")
-        list_page_layout.addWidget(self.website_list_widget)
-        list_page_layout.addWidget(self.remove_url_button)
+        list_page_layout.addWidget(QLabel('Enter domains to block (one per line):'))
+        self.website_list_edit = QTextEdit() 
+        self.website_list_edit.setPlaceholderText("Ex:\ngoogle.com\nyoutube.com")
+        list_page_layout.addWidget(self.website_list_edit)
+
         line = QWidget()
         line.setFixedHeight(1)
         line.setStyleSheet("background-color: #555;")
         list_page_layout.addWidget(line)
         list_page_layout.addWidget(QLabel('Enter .exe files to block:'))
         self.app_list_edit = QTextEdit()
+        self.app_list_edit.setPlaceholderText("Ex: steam.exe") # <<< ALTERAÇÃO AQUI
         list_page_layout.addWidget(self.app_list_edit)
         self.enable_checkbox = QCheckBox('Enable Blockers')
         self.apply_button = QPushButton('Apply Blocking Changes')
@@ -585,3 +597,8 @@ class Ui_BlockerApp(object):
         content_layout.addWidget(self.tabs)
         self.status_label = QLabel('Status: Ready')
         content_layout.addWidget(self.status_label)
+
+        main_window.room_input = self.room_input
+        main_window.connect_button = self.connect_button
+        main_window.disconnect_button = self.disconnect_button
+        main_window.sync_status_label = self.sync_status_label
