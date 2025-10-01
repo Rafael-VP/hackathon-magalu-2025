@@ -10,7 +10,9 @@ from urllib.parse import urlparse
 from PyQt6.QtWidgets import (QApplication, QWidget, QStyle, QDialog, QLineEdit, 
                              QPushButton, QLabel, QFormLayout, QHBoxLayout, QVBoxLayout)
 from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime, QStandardPaths
-from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
+from PyQt6.QtSvg import QSvgRenderer
+from PyQt6.QtGui import QIcon, QColor, QPixmap, QPainter
+
 
 # Importa o módulo do registro do Windows apenas se estiver no Windows
 if platform.system() == "Windows":
@@ -21,16 +23,27 @@ from gui import Ui_BlockerApp, LoginDialog, RegisterDialog
 
 # --- FUNÇÕES AUXILIARES E CONSTANTES GLOBAIS ---
 
-def recolor_icon(icon: QIcon, color: QColor) -> QIcon:
-    """
-    Pega um ícone (QIcon), extrai sua imagem (pixmap) e máscara (forma),
-    e retorna um novo ícone com a forma preenchida pela cor desejada.
-    """
-    pixmap = icon.pixmap(QSize(256, 256))
-    mask = pixmap.mask()
-    pixmap.fill(color)
-    pixmap.setMask(mask)
-    return QIcon(pixmap)
+def recolor_svg_to_pixmap(svg_path: str, color: QColor, size: QSize) -> QPixmap:
+
+    try:
+        with open(svg_path, "r") as f:
+            svg_data = f.read()
+        
+        # IMPORTANT: Your SVG file must use fill="#000000" for the parts you want to color.
+        colored_svg_data = svg_data.replace('fill="#000000"', f'fill="{color.name()}"')
+        
+        pixmap = QPixmap(size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        renderer = QSvgRenderer(bytearray(colored_svg_data, 'utf-8'))
+        
+        painter = QPainter(pixmap)
+        renderer.render(painter)
+        painter.end()
+        
+        return pixmap
+    except Exception as e:
+        print(f"Error recoloring SVG {svg_path}: {e}")
+        return QPixmap() # Return empty pixmap on error
 
 MARKER = "# MANAGED BY PYQT-BLOCKER"
 
@@ -251,6 +264,8 @@ class BlockerApp(QWidget):
         self.cleanup_all_blocks()
         event.accept()
 
+    # main.py -> inside BlockerApp class
+
     def _setup_title_bar_icons(self):
         """Pega os ícones do sistema, os recolore e os aplica aos botões."""
         style = self.style()
@@ -260,6 +275,34 @@ class BlockerApp(QWidget):
         self.ui.maximize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton), icon_color))
         self.ui.close_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton), icon_color))
         
+        # <<< CHANGE: Load, color, and set the main application SVG icon >>>
+        try:
+            # Use the new function and path
+            colored_pixmap = recolor_svg_to_pixmap("data/icon.svg", app_icon_color, QSize(256, 256))
+            
+            # Set the icon for the main window (taskbar)
+            self.setWindowIcon(QIcon(colored_pixmap))
+            
+            # Set the icon for the label in the title bar
+            self.ui.icon_label.setPixmap(colored_pixmap)
+        except Exception as e:
+            print(f"Could not load or set app icon: {e}")
+
+        # This part for the window control buttons remains the same
+        # The recolor_icon function for standard pixmaps can be kept for these if needed,
+        # or removed if you're not using it anywhere else. For simplicity, we assume
+        # you might need it, so we'll just define it again here.
+        def recolor_pixmap_icon(icon: QIcon, color: QColor) -> QIcon:
+            pixmap = icon.pixmap(icon.actualSize(QSize(256, 256)))
+            mask = pixmap.mask()
+            pixmap.fill(color)
+            pixmap.setMask(mask)
+            return QIcon(pixmap)
+
+        self.ui.minimize_button.setIcon(recolor_pixmap_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton), button_icon_color))
+        self.ui.maximize_button.setIcon(recolor_pixmap_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton), button_icon_color))
+        self.ui.close_button.setIcon(recolor_pixmap_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton), button_icon_color))
+
         self.ui.minimize_button.setFixedSize(32, 32)
         self.ui.maximize_button.setFixedSize(32, 32)
         self.ui.close_button.setFixedSize(32, 32)
@@ -485,7 +528,6 @@ class BlockerApp(QWidget):
             if not isinstance(e, FileNotFoundError):
                 print(f"Error unblocking {exe_name}: {e}")
 
-    # --- INÍCIO DA MODIFICAÇÃO: FUNÇÃO flush_dns ATUALIZADA ---
     def flush_dns(self):
         """Limpa o cache de DNS do sistema operacional."""
         os_name = platform.system()
@@ -496,7 +538,6 @@ class BlockerApp(QWidget):
             print(">>> Limpando cache de DNS do Linux...")
             os.system("sudo systemd-resolve --flush-caches")
             print(">>> Cache de DNS limpo.")
-    # --- FIM DA MODIFICAÇÃO ---
 
     def get_hosts_path(self):
         """Retorna o caminho do arquivo hosts dependendo do SO."""
