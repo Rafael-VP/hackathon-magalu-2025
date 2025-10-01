@@ -28,15 +28,25 @@ class HistoryGraph(QWidget):
 
         today = datetime.now()
         max_value = max(self.history_data.values()) if self.history_data else 1
-
-        # Calculate the vertical offset for centering ---
+        
+        # Calculate the total number of columns
+        num_columns = 366 // 7 + (1 if 366 % 7 > 0 else 0)
+        
+        # Calculate the total width and height of the grid
+        total_graph_width = num_columns * (SQUARE_SIZE + SQUARE_SPACING)
         total_content_height = GRAPH_HEIGHT + TEXT_AREA_HEIGHT
+
+        # Calculate horizontal and vertical offsets for centering
+        x_offset = (self.width() - total_graph_width) / 2
         y_offset = (self.height() - total_content_height) / 2
-        # Ensure the offset isn't negative if the widget is too small
+        
+        # Ensure offsets aren't negative
+        if x_offset < 0:
+            x_offset = 0
         if y_offset < 0:
             y_offset = 0
 
-        # Draw the squares with the offset
+        # Draw the squares with the offsets
         for i in range(366):
             date = today - timedelta(days=i)
             date_str = date.strftime("%Y-%m-%d")
@@ -44,36 +54,34 @@ class HistoryGraph(QWidget):
             week_ago = (today.date() - date.date()).days // 7
             day_of_week = date.weekday() # Monday is 0, Sunday is 6
             
-            x = self.width() - (week_ago + 1) * (SQUARE_SIZE + SQUARE_SPACING)
-            # Apply the offset when calculating the square's y-position
+            # Apply horizontal offset to the x-coordinate
+            x = x_offset + (self.width() - total_graph_width) + (week_ago * (SQUARE_SIZE + SQUARE_SPACING)) - self.width()
+            
+            # This is the correct x-coordinate calculation
+            x = x_offset + (num_columns - 1 - week_ago) * (SQUARE_SIZE + SQUARE_SPACING)
+
+            # Apply vertical offset to the y-coordinate
             y = y_offset + (day_of_week * (SQUARE_SIZE + SQUARE_SPACING))
 
             value = self.history_data.get(date_str, 0)
             if value == 0:
                 color = QColor("#3c3c3c")
             else:
-                # Calculate progress from 0.0 to 1.0
                 progress = value / max_value
-
-                # Interpolate Green from 50 up to 120 (the green value in #0078d7)
                 green_val = 50 + int(progress * 70)
-
-                # Interpolate Blue from a darker base up to 215 (the blue value in #0078d7)
                 blue_val = 100 + int(progress * 115)
-
                 color = QColor(0, green_val, blue_val)
             
             painter.setBrush(color)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRect(int(x), int(y), SQUARE_SIZE, SQUARE_SIZE)
             
-        # Draw the text information with the offset
+        # Draw the text information with the vertical offset
         today_str = today.strftime("%Y-%m-%d")
         today_seconds = self.history_data.get(today_str, 0)
         today_minutes = today_seconds // 60
         display_text = f"Today ({today.strftime('%B %d')}): {today_minutes} minutes of focus"
 
-        # 3. Apply the offset when defining the text area
         text_y_position = y_offset + GRAPH_HEIGHT + 10
         text_rect = QRect(0, int(text_y_position), self.width(), 30)
 

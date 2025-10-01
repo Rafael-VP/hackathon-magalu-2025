@@ -4,10 +4,11 @@ import math
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit,
     QPushButton, QCheckBox, QApplication, QTabWidget,
-    QLineEdit, QListWidget, QDialog, QFormLayout
+    QLineEdit, QListWidget, QDialog, QFormLayout, QStyle
 )
 from PyQt6.QtGui import QScreen, QPainter, QColor, QPen, QFont, QIntValidator, QPixmap, QIcon
-from PyQt6.QtCore import Qt, QRectF, QTimer, QSize
+from PyQt6.QtCore import Qt, QRectF, QTimer, QSize, QPoint
+from PyQt6.QtSvg import QSvgRenderer
 from history_graph import HistoryGraph
 
 SERVER_BASE_URL = "http://201.23.72.236:5000"
@@ -19,19 +20,81 @@ def recolor_icon(icon: QIcon, color: QColor) -> QIcon:
     pixmap.setMask(mask)
     return QIcon(pixmap)
 
+def recolor_svg_to_pixmap(svg_path: str, color: QColor, size: QSize) -> QPixmap:
+    try:
+        with open(svg_path, "r") as f:
+            svg_data = f.read()
+        
+        colored_svg_data = svg_data.replace('fill="#000000"', f'fill="{color.name()}"')
+        
+        pixmap = QPixmap(size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        renderer = QSvgRenderer(bytearray(colored_svg_data, 'utf-8'))
+        
+        painter = QPainter(pixmap)
+        renderer.render(painter)
+        painter.end()
+        
+        return pixmap
+    except Exception as e:
+        print(f"Error recoloring SVG {svg_path}: {e}")
+        return QPixmap()
 
 class LoginDialog(QDialog):
-# Em gui.py, dentro da classe LoginDialog:
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Login")
         self.setModal(True)
         self.setMinimumWidth(400)
+        self.successful_username = None
 
-        # --- CRIAÇÃO DOS WIDGETS ---
-        title_label = QLabel("Bem-Vindo ao HourClass!")
-        title_label.setObjectName("login_title")
+        # --- MAKE WINDOW FRAMELESS ---
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.old_pos = None
+        
+        # --- CUSTOM TITLE BAR ---
+        self.title_bar = QWidget()
+        self.title_bar.setObjectName("title_bar")
+        self.title_bar.setFixedHeight(35)
+        title_bar_layout = QHBoxLayout(self.title_bar)
+        title_bar_layout.setContentsMargins(10, 0, 0, 0)
+
+        app_icon_color = QColor("#0078d7")
+        colored_pixmap = recolor_svg_to_pixmap("data/icon.svg", app_icon_color, QSize(20, 20))
+
+        self.icon_label = QLabel()
+        self.icon_label.setFixedSize(20, 20)
+        self.icon_label.setScaledContents(True)
+        self.icon_label.setPixmap(colored_pixmap)
+        
+        title_label = QLabel('Login to HourGlass')
+        title_label.setObjectName("title_label")
+
+        button_icon_color = QColor("white")
+        style = QApplication.style()
+
+        self.minimize_button = QPushButton()
+        self.minimize_button.setObjectName("minimize_button")
+        self.minimize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton), button_icon_color))
+
+        self.close_button = QPushButton()
+        self.close_button.setObjectName("close_button")
+        self.close_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton), button_icon_color))
+
+        title_bar_layout.addWidget(self.icon_label)
+        title_bar_layout.addWidget(title_label)
+        title_bar_layout.addStretch()
+        title_bar_layout.addWidget(self.minimize_button)
+        title_bar_layout.addWidget(self.close_button)
+
+        self.minimize_button.setFixedSize(32, 32)
+        self.close_button.setFixedSize(32, 32)
+        self.minimize_button.setIconSize(QSize(16, 16))
+        self.close_button.setIconSize(QSize(16, 16))
+        
+        # --- LOGIN FORM WIDGETS ---
+        login_title_label = QLabel("Bem-Vindo ao HourClass!")
+        login_title_label.setObjectName("login_title")
 
         self.username_edit = QLineEdit()
         self.username_edit.setPlaceholderText("Digite seu usuário")
@@ -43,14 +106,14 @@ class LoginDialog(QDialog):
 
         self.create_user_button = QPushButton("Criar Novo Usuário")
         self.login_button = QPushButton("Entrar")
-        self.login_button.setObjectName("primary_button") # Para o estilo de destaque
+        self.login_button.setObjectName("primary_button")
         self.cancel_button = QPushButton("Cancelar")
         
         self.error_label = QLabel("")
         self.error_label.setStyleSheet("color: #ff5555;")
         self.error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # --- MONTAGEM DO LAYOUT ---
+        # --- LAYOUT SETUP ---
         form_layout = QFormLayout()
         form_layout.addRow("Usuário:", self.username_edit)
         form_layout.addRow("Senha:", self.password_edit)
@@ -66,18 +129,28 @@ class LoginDialog(QDialog):
         button_layout.addWidget(self.login_button)
 
         main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(15)
-        main_layout.addWidget(title_label)
-        main_layout.addLayout(form_layout)
-        main_layout.addLayout(checkbox_layout)
-        main_layout.addWidget(self.error_label)
-        main_layout.addStretch()
-        main_layout.addLayout(button_layout)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
         
-        # --- CONEXÃO DOS SINAIS ---
-        self.create_user_button.clicked.connect(self.show_register_dialog) 
+        main_layout.addWidget(self.title_bar)
+        
+        content_layout = QVBoxLayout()
+        content_layout.setSpacing(15)
+        content_layout.setContentsMargins(20, 20, 20, 20)
+        content_layout.addWidget(login_title_label)
+        content_layout.addLayout(form_layout)
+        content_layout.addLayout(checkbox_layout)
+        content_layout.addWidget(self.error_label)
+        content_layout.addStretch()
+        content_layout.addLayout(button_layout)
+        
+        main_layout.addLayout(content_layout)
+
+        # --- SIGNAL CONNECTIONS ---
+        self.create_user_button.clicked.connect(self.show_register_dialog)
         self.login_button.clicked.connect(self.handle_login)
-        self.cancel_button.clicked.connect(self.reject)
+        self.close_button.clicked.connect(self.reject)
+        self.minimize_button.clicked.connect(self.showMinimized)
         self.show_password_checkbox.toggled.connect(self.toggle_password_visibility)
         self.password_edit.returnPressed.connect(self.login_button.click)
 
@@ -88,6 +161,7 @@ class LoginDialog(QDialog):
     def handle_login(self):
         username = self.username_edit.text()
         password = self.password_edit.text()
+        
         server_url = f"{SERVER_BASE_URL}/login"
         payload = {'username': username, 'password': password}
         try:
@@ -96,6 +170,7 @@ class LoginDialog(QDialog):
             QApplication.processEvents()
             response = requests.post(server_url, json=payload, timeout=10)
             if response.status_code == 200:
+                self.successful_username = username
                 self.accept()
             elif response.status_code == 401:
                 self.error_label.setText("Usuário ou senha inválidos.")
@@ -109,19 +184,70 @@ class LoginDialog(QDialog):
             self.login_button.setEnabled(True)
 
     def toggle_password_visibility(self, checked):
-        """Alterna a visibilidade da senha no campo de texto."""
+        """Toggles the visibility of the password field."""
         if checked:
             self.password_edit.setEchoMode(QLineEdit.EchoMode.Normal)
         else:
             self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
 
+    # --- DRAGGING FUNCTIONS ---
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self.title_bar.underMouse():
+            self.old_pos = event.globalPosition().toPoint()
+
+    def mouseMoveEvent(self, event):
+        if self.old_pos:
+            delta = QPoint(event.globalPosition().toPoint() - self.old_pos)
+            self.move(self.x() + delta.x(), self.y() + delta.y())
+            self.old_pos = event.globalPosition().toPoint()
+
+    def mouseReleaseEvent(self, event):
+        self.old_pos = None
+
 class RegisterDialog(QDialog):
-    # ... (this class is unchanged)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Criar Novo Usuário")
         self.setModal(True)
         self.setMinimumWidth(350)
+
+        # --- MAKE WINDOW FRAMELESS ---
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.old_pos = None
+
+        # --- CUSTOM TITLE BAR ---
+        self.title_bar = QWidget()
+        self.title_bar.setObjectName("title_bar")
+        self.title_bar.setFixedHeight(35)
+        title_bar_layout = QHBoxLayout(self.title_bar)
+        title_bar_layout.setContentsMargins(10, 0, 0, 0)
+        
+        app_icon_color = QColor("#0078d7")
+        colored_pixmap = recolor_svg_to_pixmap("data/icon.svg", app_icon_color, QSize(20, 20))
+        
+        self.icon_label = QLabel()
+        self.icon_label.setFixedSize(20, 20)
+        self.icon_label.setScaledContents(True)
+        self.icon_label.setPixmap(colored_pixmap)
+        
+        title_label = QLabel('Register User')
+        title_label.setObjectName("title_label")
+
+        button_icon_color = QColor("white")
+        style = QApplication.style()
+        self.close_button = QPushButton()
+        self.close_button.setObjectName("close_button")
+        self.close_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton), button_icon_color))
+
+        title_bar_layout.addWidget(self.icon_label)
+        title_bar_layout.addWidget(title_label)
+        title_bar_layout.addStretch()
+        title_bar_layout.addWidget(self.close_button)
+        
+        self.close_button.setFixedSize(32, 32)
+        self.close_button.setIconSize(QSize(16, 16))
+
+        # --- REGISTER FORM WIDGETS ---
         self.username_edit = QLineEdit()
         self.password_edit = QLineEdit()
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
@@ -131,20 +257,36 @@ class RegisterDialog(QDialog):
         self.cancel_button = QPushButton("Cancelar")
         self.status_label = QLabel("")
         self.status_label.setStyleSheet("color: #ff5555;")
+        
+        # --- LAYOUT SETUP ---
         form_layout = QFormLayout()
         form_layout.addRow("Usuário:", self.username_edit)
         form_layout.addRow("Senha:", self.password_edit)
         form_layout.addRow("Confirmar Senha:", self.confirm_password_edit)
+        
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         button_layout.addWidget(self.register_button)
         button_layout.addWidget(self.cancel_button)
+        
         main_layout = QVBoxLayout(self)
-        main_layout.addLayout(form_layout)
-        main_layout.addWidget(self.status_label)
-        main_layout.addLayout(button_layout)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        
+        main_layout.addWidget(self.title_bar)
+        
+        content_layout = QVBoxLayout()
+        content_layout.setContentsMargins(20, 20, 20, 20)
+        content_layout.addLayout(form_layout)
+        content_layout.addWidget(self.status_label)
+        content_layout.addLayout(button_layout)
+        
+        main_layout.addLayout(content_layout)
+
+        # --- SIGNAL CONNECTIONS ---
         self.register_button.clicked.connect(self.handle_register)
         self.cancel_button.clicked.connect(self.reject)
+        self.close_button.clicked.connect(self.reject)
 
     def handle_register(self):
         username = self.username_edit.text()
@@ -179,6 +321,20 @@ class RegisterDialog(QDialog):
         finally:
             self.register_button.setEnabled(True)
 
+    # --- DRAGGING FUNCTIONS ---
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self.title_bar.underMouse():
+            self.old_pos = event.globalPosition().toPoint()
+
+    def mouseMoveEvent(self, event):
+        if self.old_pos:
+            delta = QPoint(event.globalPosition().toPoint() - self.old_pos)
+            self.move(self.x() + delta.x(), self.y() + delta.y())
+            self.old_pos = event.globalPosition().toPoint()
+
+    def mouseReleaseEvent(self, event):
+        self.old_pos = None
+
 class CircularTimerWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -186,15 +342,13 @@ class CircularTimerWidget(QWidget):
         self.current_seconds_float = 0.0
         self.rotation_angle = 0
 
-        # <<< CHANGE START: Store colors and base icon, not a pre-colored pixmap >>>
-        self.start_color = QColor("#3C3C3C")  # Dark grey
-        self.end_color = QColor("#0078d7")    # Blue
+        self.start_color = QColor("#3C3C3C")
+        self.end_color = QColor("#0078d7")
         try:
-            self.base_hourglass_icon = QIcon("hourglass.png")
+            self.base_hourglass_icon = QIcon("data/hourglass.svg")
         except Exception as e:
-            print(f"Could not load hourglass.png: {e}")
+            print(f"Could not load hourglass.svg: {e}")
             self.base_hourglass_icon = None
-        # <<< CHANGE END >>>
         
         self.animation_timer = QTimer(self)
         self.animation_timer.timeout.connect(self._update_rotation)
@@ -267,9 +421,7 @@ class CircularTimerWidget(QWidget):
             span_angle = -int(arc_angle * 16)
             painter.drawArc(drawing_rect, start_angle, span_angle)
 
-        # <<< CHANGE START: Calculate color and recolor the icon in every frame >>>
         if self.base_hourglass_icon:
-            # Interpolate color based on progress_ratio
             r1, g1, b1, _ = self.start_color.getRgb()
             r2, g2, b2, _ = self.end_color.getRgb()
             r = r1 + (r2 - r1) * progress_ratio
@@ -277,11 +429,9 @@ class CircularTimerWidget(QWidget):
             b = b1 + (b2 - b1) * progress_ratio
             current_color = QColor(int(r), int(g), int(b))
             
-            # Recolor the base icon with the new color for this frame
             current_colored_icon = recolor_icon(self.base_hourglass_icon, current_color)
             current_pixmap = current_colored_icon.pixmap(QSize(256, 256))
 
-            # Draw the newly colored icon
             painter.save()
             angle_to_use = self.rotation_angle if not self.hour_input.isVisible() else 0
             icon_size = drawing_rect.width() * 0.8
@@ -290,7 +440,6 @@ class CircularTimerWidget(QWidget):
             painter.rotate(angle_to_use)
             painter.drawPixmap(icon_rect.toRect(), current_pixmap)
             painter.restore()
-        # <<< CHANGE END >>>
         
         if not self.hour_input.isVisible():
             current_seconds_int = int(self.current_seconds_float) + 1 if self.current_seconds_float > 0 else 0
@@ -310,7 +459,6 @@ class CircularTimerWidget(QWidget):
             painter.drawText(drawing_rect, Qt.AlignmentFlag.AlignCenter, time_text)
 
 class Ui_BlockerApp(object):
-    # ... (this class is unchanged)
     def setupUi(self, main_window):
         main_window.setWindowTitle('PyQt System Blocker')
         screen = QScreen.availableGeometry(QApplication.primaryScreen())
@@ -416,24 +564,18 @@ class Ui_BlockerApp(object):
         list_page_layout = QVBoxLayout(list_page)
         list_page_layout.setContentsMargins(0, 10, 0, 0)
         list_page_layout.setSpacing(10)
-        list_page_layout.addWidget(QLabel('Enter URL to block:'))
-        add_url_layout = QHBoxLayout()
-        self.url_input = QLineEdit()
-        self.url_input.setPlaceholderText("Ex: google.com")
-        self.add_url_button = QPushButton("Adicionar")
-        add_url_layout.addWidget(self.url_input)
-        add_url_layout.addWidget(self.add_url_button)
-        list_page_layout.addLayout(add_url_layout)
-        self.website_list_widget = QListWidget()
-        self.remove_url_button = QPushButton("Remover Selecionado")
-        list_page_layout.addWidget(self.website_list_widget)
-        list_page_layout.addWidget(self.remove_url_button)
+        list_page_layout.addWidget(QLabel('Enter domains to block (one per line):'))
+        self.website_list_edit = QTextEdit() 
+        self.website_list_edit.setPlaceholderText("Ex:\ngoogle.com\nyoutube.com")
+        list_page_layout.addWidget(self.website_list_edit)
+
         line = QWidget()
         line.setFixedHeight(1)
         line.setStyleSheet("background-color: #555;")
         list_page_layout.addWidget(line)
         list_page_layout.addWidget(QLabel('Enter .exe files to block:'))
         self.app_list_edit = QTextEdit()
+        self.app_list_edit.setPlaceholderText("Ex: steam.exe") # <<< ALTERAÇÃO AQUI
         list_page_layout.addWidget(self.app_list_edit)
         self.enable_checkbox = QCheckBox('Enable Blockers')
         self.apply_button = QPushButton('Apply Blocking Changes')
