@@ -1,5 +1,8 @@
 # hourClass - Hackathon Magalu 2025
 
+##LINK DO VÍDEO PITCH
+https://drive.google.com/file/d/1aTiaTnPsH2rPo4XptTDCtCTIw_OH-5qj/view?usp=sharing
+
 O **hourClass** é um aplicativo de desktop de produtividade desenvolvido em Python para o **Hackathon Magalu 2025**. Inspirado no conceito de uma ampulheta (`hourglass`), a ferramenta foi criada para ajudar você a manter o foco, eliminando distrações digitais com um sistema de bloqueio e um timer. De maneira inovadora, o sistema aproveita a **Magalu Cloud** para permitir sessões de foco em grupo, promovendo cooperação e responsabilidade compartilhada para tarefas importantes.
 
 ## Sobre o Nome
