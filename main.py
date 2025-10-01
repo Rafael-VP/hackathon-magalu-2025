@@ -318,6 +318,8 @@ class BlockerApp(QWidget):
         remaining_msecs = now.msecsTo(self.end_time)
         
         if remaining_msecs <= 0:
+            # Envia a duração total do timer para o servidor quando o tempo acaba.
+            self.send_block_time_to_server(self.total_seconds)
             updated_data = self.save_session_history(self.total_seconds)
             self.ui.history_graph.load_history(updated_data)
             self.timer.stop()
@@ -537,6 +539,23 @@ class BlockerApp(QWidget):
     def mouseReleaseEvent(self, event):
         """Finaliza o arraste da janela ao soltar o mouse."""
         self.old_pos = None
+
+    def send_block_time_to_server(self, duration_seconds):
+        """Envia a duração da sessão de bloqueio para o servidor."""
+        if not hasattr(self, 'logged_in_user') or not self.logged_in_user:
+            return # Não faz nada se não houver usuário logado
+
+        server_url = f"{SERVER_BASE_URL}/add_time"
+        payload = {
+            'username': self.logged_in_user,
+            'seconds': duration_seconds
+        }
+
+        try:
+            requests.post(server_url, json=payload, timeout=10)
+            print(f">>> Tempo de bloqueio ({duration_seconds}s) enviado para o servidor para o usuário {self.logged_in_user}.")
+        except requests.exceptions.RequestException as e:
+            print(f"*** ERRO ao enviar tempo para o servidor: {e}")
 
 # --- PONTO DE ENTRADA DA APLICAÇÃO ---
 
