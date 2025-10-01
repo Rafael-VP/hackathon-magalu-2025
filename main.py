@@ -85,7 +85,7 @@ class BlockerApp(QWidget):
         self.ui.setupUi(self)
 
         # Atualiza o título para mostrar quem está logado
-        self.ui.title_label.setText(f"Blocker - Usuário: {self.logged_in_user}")
+        self.ui.title_label.setText(f"hourClass - Usuário: {self.logged_in_user}")
         
         self._setup_title_bar_icons()
         self.old_pos = None

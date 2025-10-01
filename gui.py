@@ -67,7 +67,7 @@ class LoginDialog(QDialog):
         self.icon_label.setScaledContents(True)
         self.icon_label.setPixmap(colored_pixmap)
         
-        title_label = QLabel('Login to HourGlass')
+        title_label = QLabel('Login to hourGlass')
         title_label.setObjectName("title_label")
 
         button_icon_color = QColor("white")
@@ -93,7 +93,7 @@ class LoginDialog(QDialog):
         self.close_button.setIconSize(QSize(16, 16))
         
         # --- LOGIN FORM WIDGETS ---
-        login_title_label = QLabel("Bem-Vindo ao HourClass!")
+        login_title_label = QLabel("Bem-Vindo ao hourClass!")
         login_title_label.setObjectName("login_title")
 
         self.username_edit = QLineEdit()
@@ -460,7 +460,7 @@ class CircularTimerWidget(QWidget):
 
 class Ui_BlockerApp(object):
     def setupUi(self, main_window):
-        main_window.setWindowTitle('PyQt System Blocker')
+        main_window.setWindowTitle('hourClass')
         screen = QScreen.availableGeometry(QApplication.primaryScreen())
         width = int(screen.width() * 0.4)
         height = int(screen.height() * 0.6)
@@ -478,7 +478,7 @@ class Ui_BlockerApp(object):
         self.icon_label.setFixedSize(20, 20)
         self.icon_label.setScaledContents(True)
         
-        self.title_label = QLabel('PyQt System Blocker')
+        self.title_label = QLabel('hourClass')
         self.title_label.setObjectName("title_label")
         self.minimize_button = QPushButton()
         self.minimize_button.setObjectName("minimize_button")
