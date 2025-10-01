@@ -7,12 +7,11 @@ import json
 import atexit
 from datetime import datetime
 from urllib.parse import urlparse
-from PyQt6.QtWidgets import (QApplication, QWidget, QStyle, QDialog, QLineEdit, 
+from PyQt6.QtWidgets import (QApplication, QWidget, QStyle, QDialog, QLineEdit,
                              QPushButton, QLabel, QFormLayout, QHBoxLayout, QVBoxLayout)
 from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime, QStandardPaths
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtGui import QIcon, QColor, QPixmap, QPainter
-
 
 if platform.system() == "Windows":
     import winreg
@@ -73,150 +72,6 @@ QTabWidget::pane { border: none; }
 QTabBar { qproperty-drawBase: 0; }
 """
 
-# --- JANELA DE LOGIN ---
-class LoginDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Login")
-        self.setModal(True)
-
-        # --- ATUALIZADO: Adiciona variável para guardar o usuário logado ---
-        self.successful_username = None
-
-        self.username_edit = QLineEdit()
-        self.password_edit = QLineEdit()
-        self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.create_user_button = QPushButton("Criar Novo Usuário")
-        self.login_button = QPushButton("Entrar")
-        self.cancel_button = QPushButton("Cancelar")
-        self.error_label = QLabel("")
-        self.error_label.setStyleSheet("color: #ff5555;")
-
-        form_layout = QFormLayout()
-        form_layout.addRow("Usuário:", self.username_edit)
-        form_layout.addRow("Senha:", self.password_edit)
-        
-        button_layout = QHBoxLayout()
-        button_layout.addWidget(self.create_user_button)
-        button_layout.addStretch()
-        button_layout.addWidget(self.cancel_button)
-        button_layout.addWidget(self.login_button)
-        
-        main_layout = QVBoxLayout(self)
-        main_layout.addLayout(form_layout)
-        main_layout.addWidget(self.error_label)
-        main_layout.addLayout(button_layout)
-        
-        self.create_user_button.clicked.connect(self.show_register_dialog)
-        self.login_button.clicked.connect(self.handle_login)
-        self.cancel_button.clicked.connect(self.reject)
-
-    def show_register_dialog(self):
-        register_dialog = RegisterDialog(self)
-        register_dialog.exec()
-
-    def handle_login(self):
-        username = self.username_edit.text()
-        password = self.password_edit.text()
-        
-        # --- ATUALIZADO: Usa a constante global ---
-        server_url = f"{SERVER_BASE_URL}/login"
-        payload = {'username': username, 'password': password}
-
-        try:
-            self.login_button.setEnabled(False)
-            self.error_label.setText("Conectando...")
-            QApplication.processEvents()
-            response = requests.post(server_url, json=payload, timeout=10)
-
-            if response.status_code == 200:
-                # --- ATUALIZADO: Guarda o nome do usuário antes de fechar ---
-                self.successful_username = username
-                self.accept()
-            elif response.status_code == 401:
-                self.error_label.setText("Usuário ou senha inválidos.")
-            else:
-                self.error_label.setText(f"Erro no servidor: {response.status_code}")
-        except requests.exceptions.RequestException:
-            self.error_label.setText("Erro de conexão com o servidor.")
-        finally:
-            self.login_button.setEnabled(True)
-
-
-# --- JANELA DE REGISTRO ---
-class RegisterDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Criar Novo Usuário")
-        self.setModal(True)
-        self.setMinimumWidth(350)
-
-        self.username_edit = QLineEdit()
-        self.password_edit = QLineEdit()
-        self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.confirm_password_edit = QLineEdit()
-        self.confirm_password_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.register_button = QPushButton("Registrar")
-        self.cancel_button = QPushButton("Cancelar")
-        self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color: #ff5555;")
-        
-        form_layout = QFormLayout()
-        form_layout.addRow("Usuário:", self.username_edit)
-        form_layout.addRow("Senha:", self.password_edit)
-        form_layout.addRow("Confirmar Senha:", self.confirm_password_edit)
-        
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-        button_layout.addWidget(self.cancel_button)
-        button_layout.addWidget(self.register_button)
-        
-        main_layout = QVBoxLayout(self)
-        main_layout.addLayout(form_layout)
-        main_layout.addWidget(self.status_label)
-        main_layout.addLayout(button_layout)
-        
-        self.register_button.clicked.connect(self.handle_register)
-        self.cancel_button.clicked.connect(self.reject)
-
-    def handle_register(self):
-        username = self.username_edit.text()
-        password = self.password_edit.text()
-        confirm_password = self.confirm_password_edit.text()
-
-        if not username or not password:
-            self.status_label.setText("Usuário e senha não podem estar vazios.")
-            return
-        if password != confirm_password:
-            self.status_label.setText("As senhas não coincidem.")
-            return
-
-        # --- ATUALIZADO: Usa a constante global ---
-        server_url = f"{SERVER_BASE_URL}/register"
-        payload = {'username': username, 'password': password}
-
-        try:
-            self.register_button.setEnabled(False)
-            self.status_label.setText("Registrando...")
-            QApplication.processEvents()
-            response = requests.post(server_url, json=payload, timeout=10)
-
-            if response.status_code == 201:
-                self.status_label.setStyleSheet("color: #55ff7f;")
-                self.status_label.setText("Usuário criado! Você já pode fazer o login.")
-                QTimer.singleShot(2000, self.accept)
-            elif response.status_code == 409:
-                self.status_label.setStyleSheet("color: #ff5555;")
-                self.status_label.setText("Este nome de usuário já existe.")
-            else:
-                self.status_label.setStyleSheet("color: #ff5555;")
-                self.status_label.setText(f"Erro no servidor: {response.status_code}")
-        except requests.exceptions.RequestException:
-            self.status_label.setStyleSheet("color: #ff5555;")
-            self.status_label.setText("Erro de conexão com o servidor.")
-        finally:
-            self.register_button.setEnabled(True)
-            
 # --- CLASSE PRINCIPAL DA APLICAÇÃO ---
 
 class BlockerApp(QWidget):
@@ -316,13 +171,20 @@ class BlockerApp(QWidget):
 
 
     def start_timer(self):
+        """Starts the timer and ACTIVATES blocking."""
         hours = int(self.ui.circular_timer.hour_input.text() or 0)
         minutes = int(self.ui.circular_timer.minute_input.text() or 0)
         seconds = int(self.ui.circular_timer.second_input.text() or 0)
         self.total_seconds = (hours * 3600) + (minutes * 60) + seconds
+
         if self.total_seconds > 0:
-            self.ui.enable_checkbox.setChecked(True); self.apply_all_changes()
-            self.ui.status_label.setText("Status: Sessão de foco iniciada!"); self.ui.enable_checkbox.setEnabled(False); self.ui.apply_button.setEnabled(False)
+            # Enable blocking and apply the changes
+            self.ui.enable_checkbox.setChecked(True)
+            self.apply_all_changes()
+            self.ui.status_label.setText("Status: Focus session started!")
+            self.ui.enable_checkbox.setEnabled(False)
+            self.ui.apply_button.setEnabled(False)
+
             self.end_time = QDateTime.currentDateTime().addSecs(self.total_seconds)
             self.timer.start(16); self.ui.start_button.setEnabled(False); self.ui.circular_timer.set_inputs_visible(False)
 
@@ -344,9 +206,21 @@ class BlockerApp(QWidget):
         self.ui.circular_timer.set_time(self.total_seconds, current_seconds_float)
 
     def reset_timer(self):
+        """Stops and resets the timer, and DEACTIVATES blocking."""
         self.timer.stop()
-        h = int(self.ui.circular_timer.hour_input.text() or 0); m = int(self.ui.circular_timer.minute_input.text() or 0); s = int(self.ui.circular_timer.second_input.text() or 0)
+        
+        # Disable blocking and apply the changes
+        self.ui.enable_checkbox.setChecked(False)
+        self.apply_all_changes()
+        self.ui.status_label.setText("Status: Ready to start.")
+        self.ui.enable_checkbox.setEnabled(True)
+        self.ui.apply_button.setEnabled(True)
+
+        h = int(self.ui.circular_timer.hour_input.text() or 0)
+        m = int(self.ui.circular_timer.minute_input.text() or 0)
+        s = int(self.ui.circular_timer.second_input.text() or 0)
         self.total_seconds = (h * 3600) + (m * 60) + s
+
         self.ui.circular_timer.set_time(self.total_seconds, self.total_seconds)
         self.ui.start_button.setEnabled(True)
         self.ui.circular_timer.set_inputs_visible(True)
@@ -530,8 +404,12 @@ class BlockerApp(QWidget):
         script_dir = os.path.dirname(__file__)
         return os.path.abspath(os.path.join(script_dir, 'blocker_helper.pyw'))
     def toggle_maximize(self):
-        if self.isMaximized(): self.showNormal()
-        else: self.showMaximized()
+        """Alterna entre janela maximizada e normal."""
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+            
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and self.ui.title_bar.underMouse(): self.old_pos = event.globalPosition().toPoint()
     def mouseMoveEvent(self, event):
@@ -557,8 +435,6 @@ class BlockerApp(QWidget):
         except requests.exceptions.RequestException as e:
             print(f"*** ERRO ao enviar tempo para o servidor: {e}")
 
-
-
 # --- PONTO DE ENTRADA DA APLICAÇÃO ---
 if __name__ == '__main__':
     app = QApplication(sys.argv)
@@ -566,12 +442,15 @@ if __name__ == '__main__':
 
     login_dialog = LoginDialog()
     
-    # --- ATUALIZADO: Lógica completa de login e inicialização ---
     if login_dialog.exec() == QDialog.DialogCode.Accepted:
-        logged_in_user = login_dialog.successful_username
-        main_app = BlockerApp(username=logged_in_user)
+        # Pass the username from the dialog to the main app
+        main_app = BlockerApp(login_dialog.successful_username)
+        
+        # Register cleanup function to be called on exit
         atexit.register(main_app.cleanup_all_blocks)
+        
         main_app.show()
         sys.exit(app.exec())
     else:
+        # If login is canceled or fails, the program exits
         sys.exit(0)
