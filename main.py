@@ -239,7 +239,12 @@ class BlockerApp(QWidget):
             self.helper_path = self.get_helper_path()
             self.previously_blocked_exes = set()
         
-        self.nav_buttons = [self.ui.nav_button_timer, self.ui.nav_button_lista, self.ui.nav_button_rank, self.ui.nav_button_estatisticas]
+        self.nav_buttons = [
+            self.ui.nav_button_timer,
+            self.ui.nav_button_lista,
+            self.ui.nav_button_estatisticas,
+            self.ui.nav_button_rank,
+        ]
         
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_countdown)
