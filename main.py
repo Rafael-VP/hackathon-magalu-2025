@@ -56,6 +56,19 @@ QPushButton#minimize_button:hover, QPushButton#maximize_button:hover { backgroun
 QPushButton#close_button:hover { background-color: #e81123; }
 QTabWidget::pane { border: none; }
 QTabBar { qproperty-drawBase: 0; }
+QLabel#login_title {
+    font-size: 24px;
+    font-weight: bold;
+    padding-bottom: 15px;
+    qproperty-alignment: 'AlignCenter';
+}
+QPushButton#primary_button {
+    background-color: #0078d7;
+    font-weight: bold;
+}
+QPushButton#primary_button:hover {
+    background-color: #008ae6;
+}
 """
 
 # --- MAIN APPLICATION CLASS ---

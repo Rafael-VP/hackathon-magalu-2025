@@ -13,33 +13,65 @@ SERVER_BASE_URL = "http://201.23.72.236:5000"
 
 
 class LoginDialog(QDialog):
+# Em gui.py, dentro da classe LoginDialog:
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Login")
         self.setModal(True)
+        self.setMinimumWidth(400)
+
+        # --- CRIAÇÃO DOS WIDGETS ---
+        title_label = QLabel("Bem-Vindo ao HourClass!")
+        title_label.setObjectName("login_title")
+
         self.username_edit = QLineEdit()
+        self.username_edit.setPlaceholderText("Digite seu usuário")
         self.password_edit = QLineEdit()
+        self.password_edit.setPlaceholderText("Digite sua senha")
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+
+        self.show_password_checkbox = QCheckBox("Mostrar Senha")
+
         self.create_user_button = QPushButton("Criar Novo Usuário")
         self.login_button = QPushButton("Entrar")
+        self.login_button.setObjectName("primary_button") # Para o estilo de destaque
         self.cancel_button = QPushButton("Cancelar")
+        
         self.error_label = QLabel("")
         self.error_label.setStyleSheet("color: #ff5555;")
+        self.error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # --- MONTAGEM DO LAYOUT ---
         form_layout = QFormLayout()
         form_layout.addRow("Usuário:", self.username_edit)
         form_layout.addRow("Senha:", self.password_edit)
+
+        checkbox_layout = QHBoxLayout()
+        checkbox_layout.addStretch()
+        checkbox_layout.addWidget(self.show_password_checkbox)
+
         button_layout = QHBoxLayout()
-        button_layout.addWidget(self.login_button)
-        button_layout.addWidget(self.cancel_button)
         button_layout.addWidget(self.create_user_button)
         button_layout.addStretch()
+        button_layout.addWidget(self.cancel_button)
+        button_layout.addWidget(self.login_button)
+
         main_layout = QVBoxLayout(self)
+        main_layout.setSpacing(15)
+        main_layout.addWidget(title_label)
         main_layout.addLayout(form_layout)
+        main_layout.addLayout(checkbox_layout)
         main_layout.addWidget(self.error_label)
+        main_layout.addStretch()
         main_layout.addLayout(button_layout)
-        self.create_user_button.clicked.connect(self.show_register_dialog)
+        
+        # --- CONEXÃO DOS SINAIS ---
+        self.create_user_button.clicked.connect(self.show_register_dialog) 
         self.login_button.clicked.connect(self.handle_login)
         self.cancel_button.clicked.connect(self.reject)
+        self.show_password_checkbox.toggled.connect(self.toggle_password_visibility)
+        self.password_edit.returnPressed.connect(self.login_button.click)
 
     def show_register_dialog(self):
         register_dialog = RegisterDialog(self)
@@ -67,6 +99,13 @@ class LoginDialog(QDialog):
             self.error_label.setText("Erro: A conexão demorou para responder.")
         finally:
             self.login_button.setEnabled(True)
+
+    def toggle_password_visibility(self, checked):
+        """Alterna a visibilidade da senha no campo de texto."""
+        if checked:
+            self.password_edit.setEchoMode(QLineEdit.EchoMode.Normal)
+        else:
+            self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
 
 class RegisterDialog(QDialog):
     def __init__(self, parent=None):
