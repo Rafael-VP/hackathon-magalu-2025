@@ -1,6 +1,9 @@
-# PyQt System Blocker
+# hourClass
 
-Este projeto foi desenvolvido para o **Hackathon Magalu 2025**. É uma aplicação de desktop focada em produtividade, construída em Python com a biblioteca PyQt6. A ferramenta foi projetada para ajudar os usuários a manter o foco, evitando distrações digitais através de um timer, bloqueio de sites/aplicativos e análise do histórico de uso.
+O hourClass foi desenvolvido para o **Hackathon Magalu 2025**. É uma aplicação de desktop focada em produtividade, construída em Python com a biblioteca PyQt6. A ferramenta foi projetada para ajudar os usuários a manter o foco, evitando distrações digitais através de um timer, bloqueio de sites/aplicativos e análise do histórico de uso. Ademais, o sistema da Magalu Cloud foi utilizado de uma maneira criativa, pensada na produtividade, permitindo os usuários a sincronizarem seus dados, exortando a cooperação e atenção para tarefas importantes.
+
+## Sobre o nome
+* O nome hourClass é um trocadilho com a palavra "hourglass", que significa ampulheta em inglês. Visto que a principal funcionalidade do programa é reservar tempo para atividades como estudos e trabalho, a ampulheta se torna um símbolo muito adequado para relacionar ao projeto. Além disso, com a integração feita com a Magalu Cloud, somos capazes de trabalhar em conjunto com outros usuários, fazendo cada sessão de estudos ser "our class", ou seja, nossa aula!
 
 ## Funcionalidades
 
@@ -10,7 +13,7 @@ Este projeto foi desenvolvido para o **Hackathon Magalu 2025**. É uma aplicaç�
     * **Sites:** Interface aprimorada para adicionar e remover URLs de uma lista de bloqueio, que funciona através da edição do arquivo `hosts` do sistema.
     * **Aplicativos (Windows):** Permite ao usuário listar arquivos executáveis (`.exe`) para bloqueá-los durante o período de foco.
 * **Histórico de Foco com Gráfico:** A aplicação salva a duração de cada sessão de foco e exibe um gráfico visual do tempo focado nos últimos dias.
-* **Interface Moderna:** Um design com tema escuro e componentes personalizados, incluindo uma barra de título própria para uma experiência de uso agradável.
+* **Interface Simples:** Um design com tema escuro e componentes personalizados, incluindo uma barra de título própria para uma experiência de uso agradável.
 
 ## Como Funciona
 
@@ -52,8 +55,10 @@ A aplicação possui uma arquitetura cliente-servidor para autenticação. A ló
     * Digite a URL (ex: `youtube.com`) no campo de texto superior.
     * Clique em **Adicionar**. O domínio será extraído e adicionado à lista.
     * Para remover, selecione um ou mais sites na lista e clique em **Remover Selecionado**.
+    * DICA: para garantir um uso correto, é interessante adicionar variações de URLs, como "www.instagram.com" e "instagram.com"
 3.  **Para bloquear aplicativos:**
     * Na caixa de texto inferior, insira o nome dos executáveis (ex: `chrome.exe`, `discord.exe`), um por linha.
+    * DICA: você pode clicar no aplicativo com o botão direito, e "ir ao local do arquivo", para garantir o nome correto do executável do app.
 4.  Para ativar os bloqueios, marque a caixa **Enable Blockers**.
 5.  Clique em **Apply Blocking Changes** para que as regras entrem em vigor.
 
