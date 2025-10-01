@@ -170,30 +170,43 @@ class BlockerApp(QWidget):
         self.ui.remove_url_button.clicked.connect(self.remove_selected_url)
         self.ui.url_input.returnPressed.connect(self.add_url_from_input)
 
+
+
     def add_url_from_input(self):
-        """Gets text from the input, validates, and adds it to the visual list."""
+        """
+        Pega o texto do input, extrai o domínio principal (sem www.) 
+        e o adiciona à lista visual.
+        """
         url_text = self.ui.url_input.text().strip()
         if not url_text:
             return
 
         if not url_text.startswith(('http://', 'https://')):
             url_text = 'http://' + url_text
+        
         try:
             domain = urlparse(url_text).netloc
-            if domain.startswith('www.'):
-                domain = domain[4:]
+            if not domain:
+                self.ui.status_label.setText("Status: URL inválida.")
+                return
 
-            if domain:
+            # --- LÓGICA ALTERADA ---
+            # Converte para a forma canônica (sem www.)
+            canonical_domain = domain[4:] if domain.startswith('www.') else domain
+            
+            if canonical_domain:
                 items = [self.ui.website_list_widget.item(i).text() for i in range(self.ui.website_list_widget.count())]
-                if domain not in items:
-                    self.ui.website_list_widget.addItem(domain)
+                if canonical_domain not in items:
+                    self.ui.website_list_widget.addItem(canonical_domain)
                     self.ui.url_input.clear()
+                    self.ui.status_label.setText(f"Status: Domínio '{canonical_domain}' adicionado.")
                 else:
-                    self.ui.status_label.setText("Status: Domain is already in the list.")
+                    self.ui.status_label.setText("Status: Domínio já está na lista.")
             else:
-                self.ui.status_label.setText("Status: Invalid URL.")
+                self.ui.status_label.setText("Status: URL inválida.")
+
         except Exception as e:
-            self.ui.status_label.setText(f"Status: Error processing URL - {e}")
+            self.ui.status_label.setText(f"Status: Erro ao processar URL - {e}")
 
     def remove_selected_url(self):
         """Removes the currently selected item from the URL list."""
@@ -363,31 +376,41 @@ class BlockerApp(QWidget):
         
         return data
 
+# Em main.py, substitua esta função:
+
     def update_hosts_file(self, blacklist, is_enabled, is_cleanup=False):
-        """Updates the hosts file with the list of URLs to block."""
+        """
+        Atualiza o arquivo hosts. Pega cada domínio da blacklist e expande
+        para as versões com e sem 'www.' antes de escrever.
+        """
         try:
             with open(self.hosts_path, 'r') as f:
                 lines = [line for line in f if MARKER not in line]
-
+            
             if is_enabled:
-                for site in blacklist:
-                    if site.strip():
-                        lines.append(f"{REDIRECT_IP}\t{site.strip()}\t{MARKER}\n")
+                # --- LÓGICA ALTERADA ---
+                # Cria um conjunto final para evitar duplicatas
+                final_blacklist = set()
+                for canonical_domain in blacklist:
+                    if canonical_domain.strip():
+                        # Adiciona a versão sem www
+                        final_blacklist.add(canonical_domain.strip())
+                        # Adiciona a versão com www
+                        final_blacklist.add('www.' + canonical_domain.strip())
 
+                for site in final_blacklist:
+                    lines.append(f"{REDIRECT_IP}\t{site}\t{MARKER}\n")
+            
             with open(self.hosts_path, 'w') as f:
                 f.writelines(lines)
-
-            if not is_cleanup and is_enabled:
-                self.ui.status_label.setText("Status: Block list updated!")
-                self.ui.status_label.setStyleSheet("color: #55ff7f;")
+            
+            if not is_cleanup and (is_enabled or blacklist):
+                self.ui.status_label.setText("Status: Lista de bloqueio atualizada!")
+                self.ui.status_label.setStyleSheet("color: green;")
                 self.flush_dns()
-        except PermissionError:
-             self.ui.status_label.setText("Hosts Error: Permission denied. Run as Administrator.")
-             self.ui.status_label.setStyleSheet("color: #ff5555;")
         except Exception as e:
-            self.ui.status_label.setText(f"Hosts Error: {e}")
-            self.ui.status_label.setStyleSheet("color: #ff5555;")
-
+            self.ui.status_label.setText(f"Hosts Error: {e}. Execute como Admin.")
+            self.ui.status_label.setStyleSheet("color: red;")
     def update_exe_blocks(self, blacklist, is_enabled):
         """Updates the Windows Registry to block/unblock executables."""
         try:
