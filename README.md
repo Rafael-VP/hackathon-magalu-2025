@@ -54,8 +54,9 @@ Durante a sessão, o bloqueio de sites e aplicativos é ativado, com intuito de 
 ### 2. Bloqueando Sites e Aplicativos
 Vá para a aba **Lista** para gerenciar suas distrações.
 
-* **Para bloquear sites:** Digite as URLs (ex: `youtube.com`) na caixa de texto superior, uma por linha. Para garantir um uso correto, adicione variações de URLs, como `www.instagram.com` e `instagram.com`.
-* **Para bloquear aplicativos:** Na caixa de texto inferior, insira o nome dos executáveis (ex: `chrome.exe`, `discord.exe`), um por linha.
+* **Para bloquear sites:** Digite as URLs (ex: `youtube.com`) na caixa de texto superior, e clique no botão de adicionar. Para garantir um uso correto, adicione variações de URLs, como `www.instagram.com` e `instagram.com`.
+* **Para remover sites:** Apenas selecione o site que quer remover, e clique no botão de remoção.
+* **Para bloquear aplicativos:** Na caixa de texto inferior, insira o nome dos executáveis (ex: `chrome.exe`, `discord.exe`), e o processo é análogo a adicionar e remover sites.
 
 Para ativar os bloqueios, marque a caixa **Enable Blockers** e clique em **Apply Blocking Changes**.
 
