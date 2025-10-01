@@ -52,8 +52,16 @@ class HistoryGraph(QWidget):
             if value == 0:
                 color = QColor("#3c3c3c")
             else:
-                intensity = min(200, 20 + int((value / max_value) * 180))
-                color = QColor(0, intensity, 50)
+                # Calculate progress from 0.0 to 1.0
+                progress = value / max_value
+
+                # Interpolate Green from 50 up to 120 (the green value in #0078d7)
+                green_val = 50 + int(progress * 70)
+
+                # Interpolate Blue from a darker base up to 215 (the blue value in #0078d7)
+                blue_val = 100 + int(progress * 115)
+
+                color = QColor(0, green_val, blue_val)
             
             painter.setBrush(color)
             painter.setPen(Qt.PenStyle.NoPen)
