@@ -66,5 +66,5 @@ Para ativar os bloqueios, marque a caixa **Enable Blockers** e clique em **Apply
 ### 3. Verificando seu Histórico
 Clique na aba **Estatísticas** para visualizar um gráfico do seu tempo de foco diário ao longo dos últimos 365 dias.
 
-### 4. Verificando sua Posição
+### 4. Verificando sua Posição (WIP)
 Clique na aba **Rank** para visualizar sua colocação em relação a outros usuários do aplicativo, com base no tempo de uso do app nos últimos 365 dias.
