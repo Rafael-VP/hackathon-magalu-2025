@@ -450,24 +450,43 @@ class BlockerApp(QWidget):
             json.dump(data, f)
         return data
 
+# Em main.py, substitua toda a sua função update_hosts_file por esta:
+
     def update_hosts_file(self, blacklist, is_enabled, is_cleanup=False):
+        """
+        Atualiza o arquivo hosts. Pega cada domínio da blacklist e expande
+        para as versões com e sem 'www.' antes de escrever.
+        """
         try:
             with open(self.hosts_path, 'r') as f:
                 lines = [line for line in f if MARKER not in line]
+            
             if is_enabled:
-                for site in blacklist:
-                    if site.strip():
-                        lines.append(f"{REDIRECT_IP}\t{site.strip()}\t{MARKER}\n")
+                # Cria um conjunto final para evitar duplicatas e guardar as variações
+                final_blacklist = set()
+                
+                # Para cada domínio limpo da lista, gera as duas variações
+                for canonical_domain in blacklist:
+                    domain_stripped = canonical_domain.strip()
+                    if domain_stripped:
+                        final_blacklist.add(domain_stripped)           # Adiciona -> google.com
+                        final_blacklist.add('www.' + domain_stripped)  # Adiciona -> www.google.com
+
+                # Escreve a lista final e expandida no arquivo hosts
+                for site in sorted(list(final_blacklist)):
+                    lines.append(f"{REDIRECT_IP}\t{site}\t{MARKER}\n")
+            
             with open(self.hosts_path, 'w') as f:
                 f.writelines(lines)
-            if not is_cleanup:
+            
+            if not is_cleanup and (is_enabled and blacklist):
                 self.ui.status_label.setText("Status: Lista de bloqueio atualizada!")
                 self.ui.status_label.setStyleSheet("color: green;")
                 self.flush_dns()
         except Exception as e:
             self.ui.status_label.setText(f"Hosts Error: {e}. Execute como Admin.")
             self.ui.status_label.setStyleSheet("color: red;")
-            
+                  
     def update_exe_blocks(self, blacklist, is_enabled):
         try:
             current_blacklist = {exe.strip().lower() for exe in blacklist if exe.strip()}
