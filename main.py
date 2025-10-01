@@ -315,36 +315,7 @@ class BlockerApp(QWidget):
         
         self.ui.start_button.clicked.connect(self.start_timer)
         self.ui.reset_button.clicked.connect(self.reset_timer)
-        
-        self.ui.add_url_button.clicked.connect(self.add_url_from_input)
-        self.ui.remove_url_button.clicked.connect(self.remove_selected_url)
-        self.ui.url_input.returnPressed.connect(self.add_url_from_input)
 
-    def add_url_from_input(self):
-        """Pega o texto do input, valida, limpa e adiciona à lista visual."""
-        url_text = self.ui.url_input.text().strip()
-        if not url_text: return
-
-        if not url_text.startswith(('http://', 'https://')): url_text = 'http://' + url_text
-        try:
-            domain = urlparse(url_text).netloc
-            if domain.startswith('www.'): domain = domain[4:]
-            
-            if domain:
-                items = [self.ui.website_list_widget.item(i).text() for i in range(self.ui.website_list_widget.count())]
-                if domain not in items:
-                    self.ui.website_list_widget.addItem(domain)
-                    self.ui.url_input.clear()
-                else: self.ui.status_label.setText("Status: Domínio já está na lista.")
-            else: self.ui.status_label.setText("Status: URL inválida.")
-        except Exception as e: self.ui.status_label.setText(f"Status: Erro ao processar URL - {e}")
-
-    def remove_selected_url(self):
-        """Remove o item atualmente selecionado da lista de URLs."""
-        list_items = self.ui.website_list_widget.selectedItems()
-        if not list_items: return
-        for item in list_items:
-            self.ui.website_list_widget.takeItem(self.ui.website_list_widget.row(item))
 
     def start_timer(self):
         hours = int(self.ui.circular_timer.hour_input.text() or 0)
@@ -394,7 +365,9 @@ class BlockerApp(QWidget):
             
     def apply_all_changes(self):
         is_enabled = self.ui.enable_checkbox.isChecked()
-        website_list = [self.ui.website_list_widget.item(i).text() for i in range(self.ui.website_list_widget.count())]
+        # --- ALTERAÇÃO AQUI ---
+        website_list = self.ui.website_list_edit.toPlainText().split('\n')
+        # --- FIM DA ALTERAÇÃO ---
         self.update_hosts_file(website_list, is_enabled)
         if platform.system() == "Windows":
             self.update_exe_blocks(self.ui.app_list_edit.toPlainText().split('\n'), is_enabled)
@@ -402,7 +375,9 @@ class BlockerApp(QWidget):
     def load_initial_state(self):
         self.cleanup_all_blocks()
         self.ui.status_label.setText("Status: Pronto para iniciar.")
-        self.ui.website_list_widget.clear()
+        # --- ALTERAÇÃO AQUI ---
+        self.ui.website_list_edit.setText("")
+        # --- FIM DA ALTERAÇÃO ---
         if platform.system() == "Windows":
             self.ui.app_list_edit.setText("")
             self.load_exe_block_state()
@@ -468,9 +443,11 @@ class BlockerApp(QWidget):
             
             self.previously_blocked_exes = to_block if is_enabled else set()
             
-            if not self.ui.website_list_widget.count() > 0:
+            # --- ALTERAÇÃO AQUI ---
+            if not self.ui.website_list_edit.toPlainText().strip():
                  self.ui.status_label.setText("Status: Lista de bloqueio atualizada!")
                  self.ui.status_label.setStyleSheet("color: green;")
+            # --- FIM DA ALTERAÇÃO ---
         except Exception as e:
             self.ui.status_label.setText(f"App Block Error: {e}. Run as Admin.")
             self.ui.status_label.setStyleSheet("color: red;")
