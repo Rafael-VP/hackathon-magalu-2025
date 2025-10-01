@@ -4,12 +4,15 @@ import os
 import platform
 import json
 import atexit
+import requests
 from datetime import datetime
 from urllib.parse import urlparse
 from PyQt6.QtWidgets import QApplication, QWidget, QStyle, QDialog
 from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime, QStandardPaths
 from PyQt6.QtGui import QIcon, QColor
+import uuid
 
+SERVER_BASE_URL = "http://localhost:5050" # Or your server's IP address
 
 # Importa o módulo do registro do Windows apenas se estiver no Windows
 if platform.system() == "Windows":
@@ -88,12 +91,80 @@ class BlockerApp(QWidget):
         self.timer.timeout.connect(self.update_countdown)
         self.total_seconds = 0
         self.end_time = None
+
+        self.user_id = str(uuid.uuid4()) # Generate a unique ID for this user session
+        self.synced_session_active = False
+        self.current_room = None
         
+        self.sync_timer = QTimer(self)
+        self.sync_timer.timeout.connect(self.poll_server_status)
+        
+        self.ui.connect_button.clicked.connect(self.connect_to_synced_session)
+        self.ui.disconnect_button.clicked.connect(self.disconnect_from_synced_session)
+
         self.connect_signals()
         self.load_initial_state()
         self.reset_timer()
         self.change_tab(0)
         # Removido o self.show() daqui para ser chamado no bloco __main__
+        
+    
+    def connect_to_synced_session(self):
+        print("test")
+        room_name = self.ui.room_input.text().strip()
+        if not room_name:
+            self.ui.sync_status_label.setText("Nome da sala é obrigatório.")
+            return
+
+        self.current_room = room_name
+        payload = {"room_name": self.current_room, "user_id": self.user_id}
+        try:
+            response = requests.post(f"{SERVER_BASE_URL}/join_room", json=payload)
+            if response.status_code == 200:
+                self.synced_session_active = True
+                self.ui.connect_button.setEnabled(False)
+                self.ui.disconnect_button.setEnabled(True)
+                self.ui.room_input.setEnabled(False)
+                self.sync_timer.start(3000) # Poll every 3 seconds
+                self.ui.sync_status_label.setText("Aguardando parceiro...")
+            else:
+                self.ui.sync_status_label.setText(f"Erro: {response.json().get('error', 'Desconhecido')}")
+        except requests.RequestException:
+            self.ui.sync_status_label.setText("Erro de conexão.")
+
+
+    def disconnect_from_synced_session(self):
+        # In a real app, you'd notify the server you are leaving.
+        # For this prototype, we just stop polling.
+        self.sync_timer.stop()
+        self.synced_session_active = False
+        self.current_room = None
+        self.ui.connect_button.setEnabled(True)
+        self.ui.disconnect_button.setEnabled(False)
+        self.ui.room_input.setEnabled(True)
+        self.ui.sync_status_label.setText("Desconectado")
+
+    def poll_server_status(self):
+        if not self.synced_session_active or not self.current_room:
+            return
+
+        try:
+            response = requests.get(f"{SERVER_BASE_URL}/room_status", params={"room_name": self.current_room})
+            if response.status_code == 200:
+                room_data = response.json()
+                if room_data.get("status") == "cancelled" and room_data.get("cancelled_by") != self.user_id:
+                    self.ui.sync_status_label.setText(f"Sessão cancelada pelo parceiro!")
+                    self.reset_timer() # This will stop our timer
+                    self.disconnect_from_synced_session()
+                elif room_data.get("status") == "running":
+                    self.ui.sync_status_label.setText("Sessão em andamento!")
+                elif len(room_data.get("users", [])) == 2:
+                     self.ui.sync_status_label.setText("Parceiro conectado. Inicie o timer!")
+            else:
+                self.disconnect_from_synced_session()
+        except requests.RequestException:
+            self.ui.sync_status_label.setText("Conexão perdida.")
+            self.disconnect_from_synced_session()
 
     def cleanup_all_blocks(self):
         """Remove todos os bloqueios aplicados por esta sessão ao fechar."""
@@ -186,6 +257,13 @@ class BlockerApp(QWidget):
             self.timer.start(16)
             self.ui.start_button.setEnabled(False)
             self.ui.circular_timer.set_inputs_visible(False)
+        
+        if self.synced_session_active and self.current_room:
+            payload = {"room_name": self.current_room, "user_id": self.user_id}
+            try:
+                requests.post(f"{SERVER_BASE_URL}/start_timer", json=payload)
+            except requests.RequestException:
+                self.ui.sync_status_label.setText("Erro ao iniciar timer no servidor.")
 
     def update_countdown(self):
         """Chamado pelo QTimer para atualizar o tempo restante e o círculo."""
@@ -217,6 +295,14 @@ class BlockerApp(QWidget):
         self.ui.circular_timer.set_time(self.total_seconds, self.total_seconds)
         self.ui.start_button.setEnabled(True)
         self.ui.circular_timer.set_inputs_visible(True)
+    
+        if self.synced_session_active and self.current_room: #and self.timer.isActive():
+            payload = {"room_name": self.current_room, "user_id": self.user_id}
+            try:
+                requests.post(f"{SERVER_BASE_URL}/cancel_timer", json=payload)
+            except requests.RequestException:
+                self.ui.sync_status_label.setText("Erro ao cancelar no servidor.")
+            self.disconnect_from_synced_session()
 
     def change_tab(self, index):
         """Muda a aba visível e atualiza o estilo dos botões de navegação."""

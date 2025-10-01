@@ -382,6 +382,24 @@ class Ui_BlockerApp(object):
         timer_page_layout = QVBoxLayout(timer_page)
         self.circular_timer = CircularTimerWidget()
         timer_button_layout = QHBoxLayout()
+        # --- NEW: Synced Session Controls ---
+        line = QWidget(); line.setFixedHeight(1); line.setStyleSheet("background-color: #555;")
+        timer_page_layout.addWidget(line)
+
+        sync_layout = QHBoxLayout()
+        sync_layout.setContentsMargins(0, 10, 0, 0)
+        self.room_input = QLineEdit()
+        self.room_input.setPlaceholderText("Nome da Sala")
+        self.connect_button = QPushButton("Conectar à Sala")
+        self.disconnect_button = QPushButton("Desconectar")
+        self.sync_status_label = QLabel("Desconectado")
+
+        sync_layout.addWidget(self.room_input)
+        sync_layout.addWidget(self.connect_button)
+        sync_layout.addWidget(self.disconnect_button)
+        sync_layout.addStretch()
+        sync_layout.addWidget(self.sync_status_label)
+        timer_page_layout.addLayout(sync_layout)
         self.start_button = QPushButton("Start")
         self.start_button.setObjectName("start_button")
         self.reset_button = QPushButton("Reset")
@@ -437,3 +455,8 @@ class Ui_BlockerApp(object):
         content_layout.addWidget(self.tabs)
         self.status_label = QLabel('Status: Ready')
         content_layout.addWidget(self.status_label)
+
+        main_window.room_input = self.room_input
+        main_window.connect_button = self.connect_button
+        main_window.disconnect_button = self.disconnect_button
+        main_window.sync_status_label = self.sync_status_label
