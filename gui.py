@@ -4,7 +4,7 @@ import math
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit,
     QPushButton, QCheckBox, QApplication, QTabWidget,
-    QLineEdit, QListWidget, QDialog, QFormLayout, QStyle
+    QLineEdit, QListWidget, QDialog, QFormLayout, QStyle, QTableWidget
 )
 from PyQt6.QtGui import QScreen, QPainter, QColor, QPen, QFont, QIntValidator, QPixmap, QIcon
 from PyQt6.QtCore import Qt, QRectF, QTimer, QSize, QPoint
@@ -458,6 +458,7 @@ class CircularTimerWidget(QWidget):
             painter.setPen(QColor("#f0f0f0"))
             painter.drawText(drawing_rect, Qt.AlignmentFlag.AlignCenter, time_text)
 
+# gui.py -> Dentro da classe Ui_BlockerApp
 class Ui_BlockerApp(object):
     def setupUi(self, main_window):
         main_window.setWindowTitle('hourClass')
@@ -610,15 +611,26 @@ class Ui_BlockerApp(object):
         history_layout.addWidget(self.history_graph)
         self.tabs.addTab(history_tab, "Estatísticas")
 
+        # --- INÍCIO DA CORREÇÃO: Aba de Rank ---
         rank_tab = QWidget()
-        rank_tab.setLayout(QVBoxLayout())
-        rank_tab.layout().addWidget(QLabel("Página de Rank"))
+        rank_layout = QVBoxLayout(rank_tab)
+        rank_layout.setContentsMargins(0, 10, 0, 0)
+        self.ranking_table_widget = QTableWidget()
+        self.ranking_table_widget.setObjectName("ranking_table_widget")
+        rank_layout.addWidget(self.ranking_table_widget)
         self.tabs.addTab(rank_tab, "Rank")
+        
+        content_layout.addWidget(self.tabs)
+        self.status_label = QLabel('Status: Pronto')
+        content_layout.addWidget(self.status_label)
+        # --- FIM DA CORREÇÃO ---
         
         content_layout.addWidget(self.tabs)
         self.status_label = QLabel('Status: Ready')
         content_layout.addWidget(self.status_label)
 
+        # As linhas abaixo parecem ser para uma funcionalidade diferente
+        # e podem ser mantidas ou removidas dependendo do seu objetivo.
         main_window.room_input = self.room_input
         main_window.connect_button = self.connect_button
         main_window.disconnect_button = self.disconnect_button
