@@ -3,8 +3,10 @@ import sys
 import os
 import requests
 import platform
-from PyQt6.QtWidgets import QApplication, QWidget, QStyle
-from PyQt6.QtCore import Qt, QPoint, QSize
+import atexit # Importado para garantir a limpeza em saídas anormais
+from PyQt6.QtWidgets import (QApplication, QWidget, QStyle, QDialog, QLineEdit, 
+                             QPushButton, QLabel, QFormLayout, QHBoxLayout, QVBoxLayout)
+from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
 
 if platform.system() == "Windows":
@@ -16,7 +18,6 @@ def recolor_icon(icon: QIcon, color: QColor) -> QIcon:
     pixmap = icon.pixmap(QSize(256, 256)); mask = pixmap.mask(); pixmap.fill(color); pixmap.setMask(mask)
     return QIcon(pixmap)
 
-# ... (Constantes e Stylesheet inalterados) ...
 MARKER = "# MANAGED BY PYQT-BLOCKER"
 SERVER_BASE_URL = "http://201.23.72.236:5000"
 REDIRECT_IP = "127.0.0.1"
@@ -41,9 +42,8 @@ QPushButton#close_button:hover { background-color: #e81123; }
 QTabWidget::pane { border: none; }
 QTabBar { qproperty-drawBase: 0; }
 """
-#abre a caixa de login
+
 class LoginDialog(QDialog):
-    
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Login")
@@ -79,17 +79,13 @@ class LoginDialog(QDialog):
     def handle_login(self):
         username = self.username_edit.text()
         password = self.password_edit.text()
-    
         server_url = f"{SERVER_BASE_URL}/login"
-    
-        payload = {
-            'username': username,
-            'password': password
-        }
+        payload = {'username': username, 'password': password}
 
         try:
             self.login_button.setEnabled(False)
             self.error_label.setText("Conectando...")
+            QApplication.processEvents() # Garante que a UI atualize
             response = requests.post(server_url, json=payload, timeout=10)
             if response.status_code == 200:
                 self.accept()
@@ -152,6 +148,7 @@ class RegisterDialog(QDialog):
         try:
             self.register_button.setEnabled(False)
             self.status_label.setText("Registrando...")
+            QApplication.processEvents() # Garante que a UI atualize
             response = requests.post(server_url, json=payload, timeout=10)
             if response.status_code == 201:
                 self.status_label.setStyleSheet("color: #55ff7f;")
@@ -196,13 +193,14 @@ class BlockerApp(QWidget):
         self.load_initial_state()
         self.reset_timer()
         self.change_tab(0)
-        self.show()
+        # Removido o self.show() daqui para ser chamado no bloco __main__
 
     def cleanup_all_blocks(self):
         """Remove todos os bloqueios aplicados por esta sessão."""
         print(">>> Iniciando limpeza de todas as regras de bloqueio...")
         self.update_hosts_file([], False)
         if platform.system() == "Windows":
+            # Usamos uma cópia da lista para poder modificar o set original
             for exe in list(self.previously_blocked_exes):
                 self.unblock_executable(exe)
         print(">>> Limpeza concluída.")
@@ -214,7 +212,6 @@ class BlockerApp(QWidget):
 
     def _setup_title_bar_icons(self):
         style = self.style(); icon_color = QColor("white")
-        # Acessando botões via self.ui
         self.ui.minimize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton), icon_color))
         self.ui.maximize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton), icon_color))
         self.ui.close_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton), icon_color))
@@ -222,7 +219,6 @@ class BlockerApp(QWidget):
         self.ui.minimize_button.setIconSize(QSize(16, 16)); self.ui.maximize_button.setIconSize(QSize(16, 16)); self.ui.close_button.setIconSize(QSize(16, 16))
 
     def connect_signals(self):
-        # Acessando todos os widgets via self.ui
         self.ui.nav_button_timer.clicked.connect(lambda: self.change_tab(0))
         self.ui.nav_button_lista.clicked.connect(lambda: self.change_tab(1))
         self.ui.nav_button_rank.clicked.connect(lambda: self.change_tab(2))
@@ -301,15 +297,19 @@ class BlockerApp(QWidget):
             current_blacklist = {exe.strip().lower() for exe in blacklist if exe.strip()}
             to_unblock = self.previously_blocked_exes - current_blacklist
             for exe in to_unblock: self.unblock_executable(exe)
+            
             if is_enabled:
                 to_block = current_blacklist
                 for exe in to_block: self.block_executable(exe)
             else:
-                to_block = set();
+                to_block = set()
                 for exe in self.previously_blocked_exes: self.unblock_executable(exe)
+            
             self.previously_blocked_exes = to_block if is_enabled else set()
-            if not self.ui.website_list_edit.toPlainText().strip():
-                self.ui.status_label.setText("Status: Lista de bloqueio atualizada!"); self.ui.status_label.setStyleSheet("color: green;")
+            
+            # Atualiza o status apenas se a lista de apps foi modificada
+            if current_blacklist or to_unblock:
+                 self.ui.status_label.setText("Status: Lista de bloqueio atualizada!"); self.ui.status_label.setStyleSheet("color: green;")
         except Exception as e:
             self.ui.status_label.setText(f"App Block Error: {e}. Run as Admin."); self.ui.status_label.setStyleSheet("color: red;")
 
@@ -324,6 +324,8 @@ class BlockerApp(QWidget):
         try:
             key_path = fr"Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\{exe_name}"
             winreg.DeleteKey(winreg.HKEY_LOCAL_MACHINE, key_path)
+            # Remove from previously_blocked_exes if it exists
+            self.previously_blocked_exes.discard(exe_name)
         except Exception as e:
             if not isinstance(e, FileNotFoundError): print(f"Error unblocking {exe_name}: {e}")
 
@@ -354,12 +356,12 @@ if __name__ == '__main__':
     if login_dialog.exec() == QDialog.DialogCode.Accepted:
         # 2. Se o login foi bem-sucedido, cria e mostra a janela principal
         main_app = BlockerApp()
-        main_app.show() # A chamada .show() agora está aqui
+        
+        # Registra a função de limpeza para ser chamada na saída do programa.
+        atexit.register(main_app.cleanup_all_blocks)
+        
+        main_app.show()
         sys.exit(app.exec())
     else:
         # 3. Se o login foi cancelado ou falhou, o programa simplesmente termina
         sys.exit(0)
-        
-    ex = BlockerApp()
-    atexit.register(ex.cleanup_all_blocks)
-    sys.exit(app.exec())
