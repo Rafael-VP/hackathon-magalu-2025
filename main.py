@@ -9,8 +9,8 @@ import atexit
 import uuid
 from datetime import datetime
 from urllib.parse import urlparse
-from PyQt6.QtWidgets import (QApplication, QWidget, QStyle, QDialog, QLineEdit,
-                             QPushButton, QLabel, QFormLayout, QHBoxLayout, QVBoxLayout)
+from PyQt6.QtWidgets import (QApplication, QWidget, QStyle, QDialog, QLineEdit, 
+                             QPushButton, QLabel, QFormLayout, QHBoxLayout, QVBoxLayout, QTableWidgetItem)
 from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime, QStandardPaths
 from PyQt6.QtGui import QIcon, QColor, QPixmap, QPainter
 from PyQt6.QtSvg import QSvgRenderer
@@ -48,6 +48,17 @@ def recolor_svg_to_pixmap(svg_path: str, color: QColor, size: QSize) -> QPixmap:
     except Exception as e:
         print(f"Error recoloring SVG {svg_path}: {e}")
         return QPixmap() # Return empty pixmap on error
+
+def recolor_icon(icon: QIcon, color: QColor) -> QIcon:
+    """
+    Pega um ícone (QIcon), extrai sua imagem (pixmap) e máscara (forma),
+    e retorna um novo ícone com a forma preenchida pela cor desejada.
+    """
+    pixmap = icon.pixmap(QSize(256, 256))
+    mask = pixmap.mask()
+    pixmap.fill(color)
+    pixmap.setMask(mask)
+    return QIcon(pixmap)
 
 MARKER = "# MANAGED BY PYQT-BLOCKER"
 SERVER_BASE_URL = "http://201.23.72.236:5000"
@@ -221,6 +232,7 @@ class BlockerApp(QWidget):
 
     # main.py -> inside BlockerApp class
 
+    
     def _setup_title_bar_icons(self):
         """Gets system icons, recolors them, and applies them to buttons."""
         style = self.style()
@@ -260,6 +272,15 @@ class BlockerApp(QWidget):
         self.ui.nav_button_estatisticas.clicked.connect(lambda: self.change_tab(2))
         self.ui.nav_button_rank.clicked.connect(lambda: self.change_tab(3))
         
+        # --- CORRIGIDO ---
+        # Botão "Estatísticas" agora aponta para a aba 2.
+        self.ui.nav_button_estatisticas.clicked.connect(lambda: self.change_tab(2))
+        
+        # --- CORRIGIDO ---
+        # Botão "Rank" agora aponta para a aba 3 e atualiza os dados.
+        self.ui.nav_button_rank.clicked.connect(lambda: (self.change_tab(3), self.update_ranking_display()))
+        
+        # --- O RESTANTE DA FUNÇÃO ---
         self.ui.close_button.clicked.connect(self.close)
         self.ui.minimize_button.clicked.connect(self.showMinimized)
         self.ui.maximize_button.clicked.connect(self.toggle_maximize)
@@ -610,6 +631,40 @@ class BlockerApp(QWidget):
             print(f">>> Tempo de bloqueio ({duration_seconds}s) enviado para o servidor para o usuário {self.logged_in_user}.")
         except requests.exceptions.RequestException as e:
             print(f"*** ERRO ao enviar tempo para o servidor: {e}")
+
+    def update_ranking_display(self):
+        print(">>> Buscando dados do ranking...")
+        self.ui.status_label.setText("Status: Carregando ranking...")
+        QApplication.processEvents()
+
+        server_url = f"{SERVER_BASE_URL}/ranking"
+        try:
+            response = requests.get(server_url, timeout=10)
+            if response.status_code == 200:
+                ranking_data = response.json()
+                self.ui.ranking_table_widget.setRowCount(len(ranking_data))
+                self.ui.ranking_table_widget.setColumnCount(3)
+                self.ui.ranking_table_widget.setHorizontalHeaderLabels(["Rank", "Usuário", "Tempo Total"])
+
+                for row, user_data in enumerate(ranking_data):
+                    total_seconds = user_data.get('total_seconds', 0)
+                    hours, remainder = divmod(total_seconds, 3600)
+                    minutes, seconds = divmod(remainder, 60)
+                    time_str = f"{int(hours):02}:{int(minutes):02}:{int(seconds):02}"
+
+                    self.ui.ranking_table_widget.setItem(row, 0, QTableWidgetItem(str(user_data.get('rank'))))
+                    self.ui.ranking_table_widget.setItem(row, 1, QTableWidgetItem(user_data.get('username')))
+                    self.ui.ranking_table_widget.setItem(row, 2, QTableWidgetItem(time_str))
+                
+                self.ui.ranking_table_widget.resizeColumnsToContents()
+                self.ui.status_label.setText("Status: Ranking atualizado.")
+            else:
+                self.ui.status_label.setText(f"Status: Erro ao carregar ranking ({response.status_code})")
+        except requests.exceptions.RequestException as e:
+            self.ui.status_label.setText("Status: Erro de conexão ao buscar ranking.")
+            print(f"*** ERRO ao buscar ranking: {e}")
+
+
 
 # --- PONTO DE ENTRADA DA APLICAÇÃO ---
 if __name__ == '__main__':
