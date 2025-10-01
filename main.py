@@ -9,7 +9,8 @@ from urllib.parse import urlparse
 
 from PyQt6.QtWidgets import QApplication, QWidget, QStyle, QDialog
 from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime, QStandardPaths
-from PyQt6.QtGui import QIcon, QColor
+from PyQt6.QtSvg import QSvgRenderer
+from PyQt6.QtGui import QIcon, QColor, QPixmap, QPainter
 
 # Import the Windows registry module only if on Windows
 if platform.system() == "Windows":
@@ -20,16 +21,29 @@ from gui import Ui_BlockerApp, LoginDialog, RegisterDialog
 
 # --- HELPER FUNCTIONS AND GLOBAL CONSTANTS ---
 
-def recolor_icon(icon: QIcon, color: QColor) -> QIcon:
+def recolor_svg_to_pixmap(svg_path: str, color: QColor, size: QSize) -> QPixmap:
     """
-    Takes a QIcon, extracts its pixmap and mask, and returns a new
-    icon filled with the desired color.
+    Loads an SVG file, replaces its fill color, and returns it as a QPixmap.
     """
-    pixmap = icon.pixmap(QSize(256, 256))
-    mask = pixmap.mask()
-    pixmap.fill(color)
-    pixmap.setMask(mask)
-    return QIcon(pixmap)
+    try:
+        with open(svg_path, "r") as f:
+            svg_data = f.read()
+        
+        # IMPORTANT: Your SVG file must use fill="#000000" for the parts you want to color.
+        colored_svg_data = svg_data.replace('fill="#000000"', f'fill="{color.name()}"')
+        
+        pixmap = QPixmap(size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        renderer = QSvgRenderer(bytearray(colored_svg_data, 'utf-8'))
+        
+        painter = QPainter(pixmap)
+        renderer.render(painter)
+        painter.end()
+        
+        return pixmap
+    except Exception as e:
+        print(f"Error recoloring SVG {svg_path}: {e}")
+        return QPixmap() # Return empty pixmap on error
 
 MARKER = "# MANAGED BY PYQT-BLOCKER"
 REDIRECT_IP = "127.0.0.1"
@@ -122,23 +136,41 @@ class BlockerApp(QWidget):
         self.cleanup_all_blocks()
         event.accept()
 
+    # main.py -> inside BlockerApp class
+
     def _setup_title_bar_icons(self):
         """Gets system icons, recolors them, and applies them to buttons."""
         style = self.style()
         app_icon_color = QColor("#0078d7")
         button_icon_color = QColor("white")
         
+        # <<< CHANGE: Load, color, and set the main application SVG icon >>>
         try:
-            app_icon = QIcon("icon.png")
-            colored_app_icon = recolor_icon(app_icon, app_icon_color)
-            self.setWindowIcon(colored_app_icon)
-            self.ui.icon_label.setPixmap(colored_app_icon.pixmap(QSize(256, 256)))
+            # Use the new function and path
+            colored_pixmap = recolor_svg_to_pixmap("data/icon.svg", app_icon_color, QSize(256, 256))
+            
+            # Set the icon for the main window (taskbar)
+            self.setWindowIcon(QIcon(colored_pixmap))
+            
+            # Set the icon for the label in the title bar
+            self.ui.icon_label.setPixmap(colored_pixmap)
         except Exception as e:
-            print(f"Could not load or set app icon: {e}. Make sure icon.png is in the same folder.")
+            print(f"Could not load or set app icon: {e}")
 
-        self.ui.minimize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton), button_icon_color))
-        self.ui.maximize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton), button_icon_color))
-        self.ui.close_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton), button_icon_color))
+        # This part for the window control buttons remains the same
+        # The recolor_icon function for standard pixmaps can be kept for these if needed,
+        # or removed if you're not using it anywhere else. For simplicity, we assume
+        # you might need it, so we'll just define it again here.
+        def recolor_pixmap_icon(icon: QIcon, color: QColor) -> QIcon:
+            pixmap = icon.pixmap(icon.actualSize(QSize(256, 256)))
+            mask = pixmap.mask()
+            pixmap.fill(color)
+            pixmap.setMask(mask)
+            return QIcon(pixmap)
+
+        self.ui.minimize_button.setIcon(recolor_pixmap_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton), button_icon_color))
+        self.ui.maximize_button.setIcon(recolor_pixmap_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton), button_icon_color))
+        self.ui.close_button.setIcon(recolor_pixmap_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton), button_icon_color))
 
         self.ui.minimize_button.setFixedSize(32, 32)
         self.ui.maximize_button.setFixedSize(32, 32)
