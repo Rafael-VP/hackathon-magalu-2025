@@ -9,7 +9,7 @@ from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPen, QPixmap, QIntValid
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QDialog, QFormLayout, QHBoxLayout,
     QLabel, QLineEdit, QStyle, QVBoxLayout, QWidget, QTabWidget,
-    QPushButton, QListWidget, QTableWidget
+    QPushButton, QListWidget, QTableWidget, QGraphicsDropShadowEffect
 )
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -306,12 +306,21 @@ class CircularTimerWidget(QWidget):
         self.hour_input = QLineEdit("00")
         self.hour_input.setObjectName("time_input")
         self.hour_input.setValidator(QIntValidator(0, 99))
+        self.hour_input.setMaximumWidth(80) # <<< ADICIONADO: Limita a largura
+        self.hour_input.setAlignment(Qt.AlignmentFlag.AlignCenter) # <<< ADICIONADO: Centraliza o texto
+        
         self.minute_input = QLineEdit("25")
         self.minute_input.setObjectName("time_input")
         self.minute_input.setValidator(QIntValidator(0, 59))
+        self.minute_input.setMaximumWidth(80) # <<< ADICIONADO: Limita a largura
+        self.minute_input.setAlignment(Qt.AlignmentFlag.AlignCenter) # <<< ADICIONADO: Centraliza o texto
+        
         self.second_input = QLineEdit("00")
         self.second_input.setObjectName("time_input")
         self.second_input.setValidator(QIntValidator(0, 59))
+        self.second_input.setMaximumWidth(80) # <<< ADICIONADO: Limita a largura
+        self.second_input.setAlignment(Qt.AlignmentFlag.AlignCenter) # <<< ADICIONADO: Centraliza o texto
+        
         colon1 = QLabel(":")
         colon1.setObjectName("time_colon")
         colon2 = QLabel(":")
@@ -427,6 +436,8 @@ class CircularTimerWidget(QWidget):
             span_angle = -int(arc_angle * 16)
             painter.drawArc(drawing_rect, start_angle, span_angle)
 
+# Em gui.py
+
 class Ui_BlockerApp(object):
     def setupUi(self, main_window):
         main_window.setWindowTitle('hourClass')
@@ -437,13 +448,14 @@ class Ui_BlockerApp(object):
             height = int(screen_geometry.height() * 0.6)
             main_window.setGeometry(screen_geometry.x(), screen_geometry.y(), width, height)
         
-        self.central_widget = QWidget(main_window) # Create a central widget
-        main_window.setCentralWidget(self.central_widget) # Set it
+        self.central_widget = QWidget(main_window)
+        main_window.setCentralWidget(self.central_widget)
 
-        self.main_layout = QVBoxLayout(self.central_widget) # Use the central widget's layout
+        self.main_layout = QVBoxLayout(self.central_widget)
         self.main_layout.setContentsMargins(1, 1, 1, 1)
         self.main_layout.setSpacing(0)
 
+        # 1. CRIAR E ADICIONAR A BARRA DE TÍTULO PRIMEIRO
         self.title_bar = QWidget()
         self.title_bar.setObjectName("title_bar")
         self.title_bar.setFixedHeight(35)
@@ -471,6 +483,7 @@ class Ui_BlockerApp(object):
         title_bar_layout.addWidget(self.close_button)
         self.main_layout.addWidget(self.title_bar)
         
+        # 2. DEPOIS, CRIAR E ADICIONAR A BARRA DE NAVEGAÇÃO
         self.nav_bar = QWidget()
         self.nav_bar.setObjectName("nav_bar")
         self.nav_bar.setFixedHeight(50)
@@ -493,31 +506,40 @@ class Ui_BlockerApp(object):
         nav_layout.addWidget(self.nav_button_rank)
         nav_layout.addStretch()
         self.main_layout.addWidget(self.nav_bar)
-        
+
         content_widget = QWidget()
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(15, 0, 15, 15)
+        content_widget.setObjectName("content_widget")
         self.main_layout.addWidget(content_widget)
+
+        # Apply the shadow directly to the content_widget
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(20)  # Use a larger blur radius for a softer shadow
+        shadow.setColor(QColor(0, 0, 0, 180)) # Use a semi-transparent black for a classic shadow effect
+        shadow.setOffset(0, 4)
+        content_widget.setGraphicsEffect(shadow)
+        # Then, create the layout for the content_widget as before
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(15, 15, 15, 15)
         
         self.tabs = QTabWidget()
         self.tabs.tabBar().setVisible(False)
-        
+        content_layout.addWidget(self.tabs)
+
+        # ----- Início do conteúdo das abas -----
         timer_page = QWidget()
         timer_page_layout = QVBoxLayout(timer_page)
         self.circular_timer = CircularTimerWidget()
         timer_button_layout = QHBoxLayout()
-        # --- Synced Session Controls ---
         line = QWidget(); line.setFixedHeight(1); line.setStyleSheet("background-color: #555;")
         timer_page_layout.addWidget(line)
-
         sync_layout = QHBoxLayout()
         sync_layout.setContentsMargins(0, 10, 0, 0)
         self.room_input = QLineEdit()
         self.room_input.setPlaceholderText("Nome da Sala")
         self.connect_button = QPushButton("Conectar à Sala")
+        self.connect_button.setObjectName("connect_button")
         self.disconnect_button = QPushButton("Desconectar")
         self.sync_status_label = QLabel("Desconectado")
-
         sync_layout.addWidget(self.room_input)
         sync_layout.addWidget(self.connect_button)
         sync_layout.addWidget(self.disconnect_button)
@@ -540,7 +562,6 @@ class Ui_BlockerApp(object):
         list_page_layout = QVBoxLayout(list_page)
         list_page_layout.setContentsMargins(0, 10, 0, 0)
         list_page_layout.setSpacing(10)
-        
         list_page_layout.addWidget(QLabel('Enter domain to block:'))
         add_url_layout = QHBoxLayout()
         self.url_input = QLineEdit()
@@ -553,12 +574,10 @@ class Ui_BlockerApp(object):
         self.remove_url_button = QPushButton("Remover Selecionado")
         list_page_layout.addWidget(self.website_list_widget)
         list_page_layout.addWidget(self.remove_url_button)
-
         line = QWidget()
         line.setFixedHeight(1)
         line.setStyleSheet("background-color: #555;")
         list_page_layout.addWidget(line)
-        
         list_page_layout.addWidget(QLabel('Enter .exe file to block:'))
         add_app_layout = QHBoxLayout()
         self.app_input = QLineEdit()
@@ -571,9 +590,9 @@ class Ui_BlockerApp(object):
         self.remove_app_button = QPushButton("Remover Selecionado")
         list_page_layout.addWidget(self.app_list_widget)
         list_page_layout.addWidget(self.remove_app_button)
-        
         self.enable_checkbox = QCheckBox('Enable Blockers')
         self.apply_button = QPushButton('Apply Blocking Changes')
+        self.apply_button.setObjectName("apply_button")
         list_page_layout.addWidget(self.enable_checkbox)
         list_page_layout.addWidget(self.apply_button)
         self.tabs.addTab(list_page, "Lista")
@@ -592,6 +611,5 @@ class Ui_BlockerApp(object):
         rank_layout.addWidget(self.ranking_table_widget)
         self.tabs.addTab(rank_tab, "Rank")
         
-        content_layout.addWidget(self.tabs)
         self.status_label = QLabel('Status: Pronto')
         content_layout.addWidget(self.status_label)

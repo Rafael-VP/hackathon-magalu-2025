@@ -28,16 +28,25 @@ from gui import Ui_BlockerApp, LoginDialog, RegisterDialog, recolor_icon
 # --- FUNÇÕES AUXILIARES E CONSTANTES GLOBAIS ---
 
 def recolor_svg_to_pixmap(svg_path: str, color: QColor, size: QSize) -> QPixmap:
-
+    """
+    Carrega um arquivo SVG, substitui a cor do contorno (stroke) ou do 
+    preenchimento (fill) e o renderiza em um QPixmap.
+    """
     try:
-        with open(svg_path, "r") as f:
+        with open(svg_path, "r", encoding='utf-8') as f:
             svg_data = f.read()
-        
-        # IMPORTANT: Your SVG file must use fill="#000000" for the parts you want to color.
-        colored_svg_data = svg_data.replace('fill="#000000"', f'fill="{color.name()}"')
-        
+
+        # <<< MUDANÇA PRINCIPAL AQUI >>>
+        # Torna a função mais robusta, alterando tanto o contorno quanto o preenchimento
+        # Isso funciona com ícones do Feather Icons (que usam 'stroke') e outros.
+        colored_svg_data = svg_data.replace('stroke="currentColor"', f'stroke="{color.name()}"')
+        colored_svg_data = colored_svg_data.replace('fill="#000000"', f'fill="{color.name()}"')
+
+        # Cria um pixmap transparente para desenhar o SVG
         pixmap = QPixmap(size)
         pixmap.fill(Qt.GlobalColor.transparent)
+        
+        # Usa o QSvgRenderer para desenhar o SVG modificado
         renderer = QSvgRenderer(bytearray(colored_svg_data, 'utf-8'))
         
         painter = QPainter(pixmap)
@@ -46,8 +55,8 @@ def recolor_svg_to_pixmap(svg_path: str, color: QColor, size: QSize) -> QPixmap:
         
         return pixmap
     except Exception as e:
-        print(f"Error recoloring SVG {svg_path}: {e}")
-        return QPixmap() # Return empty pixmap on error
+        print(f"Erro ao recolorir o SVG {svg_path}: {e}")
+        return QPixmap() # Retorna um pixmap vazio em caso de erro
 
 def recolor_icon(icon: QIcon, color: QColor) -> QIcon:
     """
@@ -63,29 +72,161 @@ def recolor_icon(icon: QIcon, color: QColor) -> QIcon:
 MARKER = "# MANAGED BY PYQT-BLOCKER"
 SERVER_BASE_URL = "http://201.23.72.236:5000"
 REDIRECT_IP = "127.0.0.1"
-DARK_THEME = """
-QWidget { background-color: #2b2b2b; color: #f0f0f0; font-family: Segoe UI; font-size: 14px; }
-QWidget#title_bar { background-color: #1e1e1e; }
-QWidget#nav_bar { background-color: #3c3c3c; border-bottom: 1px solid #555; }
-QPushButton#nav_button { background-color: transparent; border: none; padding: 10px; font-size: 15px; font-weight: bold; color: #a9a9a9; }
-QPushButton#nav_button:hover { background-color: #4f4f4f; }
-QPushButton#nav_button[active="true"] { color: #ffffff; border-bottom: 2px solid #0078d7; }
-QLineEdit#time_input { background-color: transparent; border: none; color: #f0f0f0; font-size: 40px; font-weight: bold; max-width: 60px; text-align: center; }
-QLabel#time_colon { font-size: 35px; font-weight: bold; color: #f0f0f0; }
-QLabel#title_label { font-size: 16px; font-weight: bold; padding-left: 5px; }
-QLabel#login_title { font-size: 24px; font-weight: bold; padding-bottom: 15px; qproperty-alignment: 'AlignCenter'; }
-QPushButton#primary_button { background-color: #0078d7; font-weight: bold; }
-QPushButton#primary_button:hover { background-color: #008ae6; }
-QPushButton { background-color: #555555; border: 1px solid #777777; padding: 8px; border-radius: 3px; }
-QPushButton:hover { background-color: #6a6a6a; }
-QPushButton#start_button { background-color: #0078d7; font-weight: bold; }
-QPushButton#reset_button { background-color: #555; font-weight: bold; }
-QTextEdit { background-color: #3c3c3c; border: 1px solid #555555; border-radius: 3px; }
-QPushButton#minimize_button, QPushButton#maximize_button, QPushButton#close_button { background-color: transparent; border: none; padding: 2px; }
-QPushButton#minimize_button:hover, QPushButton#maximize_button:hover { background-color: #555555; }
-QPushButton#close_button:hover { background-color: #e81123; }
-QTabWidget::pane { border: none; }
-QTabBar { qproperty-drawBase: 0; }
+
+#CORES PARA RÁPIDA MODIFICAÇÃO:
+
+COLOR_BACKGROUND = "#21252b"
+COLOR_CONTENT_BACKGROUND = "#282c34"
+COLOR_PRIMARY = "#61afef"
+COLOR_TEXT = "#abb2bf"
+COLOR_BORDER = "#181a1f"
+COLOR_SUCCESS = "#98c379"
+COLOR_ERROR = "#e06c75"
+
+DARK_THEME_MODERN = f"""
+/* --- General Styles --- */
+QWidget {{
+    background-color: {COLOR_BACKGROUND};
+    color: {COLOR_TEXT};
+    font-family: "Segoe UI", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+    font-size: 14px;
+    border: none;
+}}
+
+/* --- Container for Main Content (with improved shadow) --- */
+#shadow_container {{
+    border-radius: 8px; /* Match the border-radius of the content widget */
+    /*
+     * Note: The drop shadow effect is set in the Python code,
+     * but styling the container can help define the visual space.
+     */
+}}
+
+/* --- Content Widget inside the Shadow Container --- */
+#content_widget {{
+    background-color: {COLOR_CONTENT_BACKGROUND};
+    border-radius: 8px;
+    /* Add a subtle border to the content widget to enhance the floating effect */
+    border: 1px solid #3c3c3c; 
+}}
+
+/* --- Title and Navigation Bars --- */
+QWidget#title_bar {{
+    background-color: {COLOR_BORDER};
+}}
+QLabel#title_label {{
+    font-size: 15px;
+    font-weight: bold;
+    padding-left: 5px;
+    color: {COLOR_TEXT};
+}}
+QWidget#nav_bar {{
+    background-color: {COLOR_CONTENT_BACKGROUND};
+    border-bottom: 2px solid {COLOR_BORDER};
+}}
+
+/* --- Navigation Buttons --- */
+QPushButton#nav_button {{
+    background-color: transparent;
+    padding: 10px;
+    font-size: 15px;
+    font-weight: bold;
+    color: {COLOR_TEXT};
+    border-bottom: 3px solid transparent;
+}}
+QPushButton#nav_button:hover {{
+    background-color: #3b4049;
+}}
+QPushButton#nav_button[active="true"] {{
+    color: {COLOR_PRIMARY};
+    border-bottom: 3px solid {COLOR_PRIMARY};
+    font-weight: 700; /* Make the font a little heavier */
+}}
+
+/* --- Buttons --- */
+QPushButton {{
+    background-color: {COLOR_CONTENT_BACKGROUND};
+    border: 1px solid {COLOR_BORDER};
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-weight: bold;
+}}
+QPushButton:hover {{
+    background-color: #3b4049;
+    border-color: {COLOR_PRIMARY};
+}}
+QPushButton:pressed {{
+    background-color: #4c5360;
+}}
+QPushButton:disabled {{
+    opacity: 0.5;
+    color: #5c6370;
+}}
+
+/* --- Primary Buttons --- */
+#start_button, #primary_button, #apply_button, #connect_button {{
+    background-color: {COLOR_PRIMARY};
+    color: {COLOR_BORDER};
+}}
+#start_button:hover, #primary_button:hover, #apply_button:hover, #connect_button:hover {{
+    background-color: #7ac0ff;
+}}
+
+/* --- Text Inputs --- */
+QLineEdit, QListWidget, QTableWidget {{
+    background-color: {COLOR_BACKGROUND};
+    border: 1px solid {COLOR_BORDER};
+    padding: 6px;
+    border-radius: 6px;
+}}
+QLineEdit:focus {{
+    border-color: {COLOR_PRIMARY};
+}}
+
+/* --- Timer Inputs --- */
+QLineEdit#time_input {{
+    background-color: transparent;
+    border: none;
+    font-size: 48px;
+    font-weight: bold;
+    color: white;
+}}
+QLabel#time_colon {{
+    font-size: 40px;
+    font-weight: bold;
+    color: #5c6370;
+}}
+
+/* --- Title Bar Buttons --- */
+#minimize_button, #maximize_button, #close_button {{
+    background-color: transparent;
+    border-radius: 0px;
+}}
+#minimize_button:hover, #maximize_button:hover {{
+    background-color: {COLOR_CONTENT_BACKGROUND};
+}}
+#close_button:hover {{
+    background-color: {COLOR_ERROR};
+}}
+
+/* --- Ranking Table --- */
+QHeaderView::section {{
+    background-color: {COLOR_CONTENT_BACKGROUND};
+    padding: 4px;
+    border: 1px solid {COLOR_BORDER};
+    font-weight: bold;
+}}
+QTableWidget {{
+    gridline-color: {COLOR_BORDER};
+}}
+
+/* --- Tabs --- */
+QTabWidget::pane {{
+    border: none;
+}}
+QTabBar {{
+    qproperty-drawBase: 0;
+}}
 """
 
 # --- CLASSE PRINCIPAL DA APLICAÇÃO ---
@@ -233,37 +374,45 @@ class BlockerApp(QMainWindow):
 
     
     def _setup_title_bar_icons(self):
-        """Gets system icons, recolors them, and applies them to buttons."""
-        style = self.style()
-        app_icon_color = QColor("#0078d7") # Define the color for the app icon
-        button_icon_color = QColor("white") # Define the color for the button icons
+        """Carrega ícones SVG, os recolore e aplica aos botões com o tamanho correto."""
+        app_icon_color = QColor("#61afef")
+        button_icon_color = QColor("#abb2bf") 
         
-        # This part for the window control buttons remains the same
-        self.ui.minimize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton), button_icon_color))
-        self.ui.maximize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton), button_icon_color))
-        self.ui.close_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton), button_icon_color))
-
-        # <<< CHANGE: Load, color, and set the main application SVG icon >>>
+        # Ícone da aplicação (sem alterações)
         try:
-            # Use the new function and path
-            colored_pixmap = recolor_svg_to_pixmap("data/icon.svg", app_icon_color, QSize(256, 256))
-            
-            # Set the icon for the main window (taskbar)
-            self.setWindowIcon(QIcon(colored_pixmap))
-            
-            # Set the icon for the label in the title bar
-            self.ui.icon_label.setPixmap(colored_pixmap)
+            app_pixmap = recolor_svg_to_pixmap("data/icon.svg", app_icon_color, QSize(256, 256))
+            self.setWindowIcon(QIcon(app_pixmap))
+            self.ui.icon_label.setPixmap(app_pixmap.scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         except Exception as e:
-            print(f"Could not load or set app icon: {e}")
+            print(f"Não foi possível carregar o ícone da aplicação: {e}")
 
-        # The rest of the method for setting button sizes and icon sizes...
+        # <<< MUDANÇA DE TAMANHO AQUI >>>
+        # Renderizamos o pixmap em uma resolução maior (64x64) para qualidade
+        # e definimos o tamanho de exibição para 20x20 para uma melhor aparência.
+        render_size = QSize(64, 64)
+        display_size = QSize(20, 20)
+        
+        try:
+            # Assumindo que você tem os ícones em uma pasta 'icons/'
+            minimize_pixmap = recolor_svg_to_pixmap("data/minimize.svg", button_icon_color, render_size)
+            maximize_pixmap = recolor_svg_to_pixmap("data/maximize.svg", button_icon_color, render_size)
+            close_pixmap = recolor_svg_to_pixmap("data/x.svg", button_icon_color, render_size)
+            
+            self.ui.minimize_button.setIcon(QIcon(minimize_pixmap))
+            self.ui.maximize_button.setIcon(QIcon(maximize_pixmap))
+            self.ui.close_button.setIcon(QIcon(close_pixmap))
+        except Exception as e:
+            print(f"Não foi possível carregar os ícones da barra de título: {e}")
+
+        # Define o tamanho fixo dos botões
         self.ui.minimize_button.setFixedSize(32, 32)
         self.ui.maximize_button.setFixedSize(32, 32)
         self.ui.close_button.setFixedSize(32, 32)
         
-        self.ui.minimize_button.setIconSize(QSize(16, 16))
-        self.ui.maximize_button.setIconSize(QSize(16, 16))
-        self.ui.close_button.setIconSize(QSize(16, 16))
+        # Define o tamanho de EXIBIÇÃO do ícone dentro do botão
+        self.ui.minimize_button.setIconSize(display_size)
+        self.ui.maximize_button.setIconSize(display_size)
+        self.ui.close_button.setIconSize(display_size)
 
     def connect_signals(self):
         self.ui.nav_button_timer.clicked.connect(lambda: self.change_tab(0))
@@ -668,7 +817,7 @@ class BlockerApp(QMainWindow):
 # --- PONTO DE ENTRADA DA APLICAÇÃO ---
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    app.setStyleSheet(DARK_THEME)
+    app.setStyleSheet(DARK_THEME_MODERN)
 
     #login_dialog = LoginDialog()
     
