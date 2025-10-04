@@ -1,14 +1,19 @@
 # gui.py
+import os
+import sys
 import requests
 import math
+import json
+from PyQt6.QtCore import QUrl, Qt, QPoint, QRectF, QSize, QTimer
+from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPen, QPixmap, QIntValidator
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit,
-    QPushButton, QCheckBox, QApplication, QTabWidget,
-    QLineEdit, QListWidget, QDialog, QFormLayout, QStyle, QTableWidget
+    QApplication, QCheckBox, QDialog, QFormLayout, QHBoxLayout,
+    QLabel, QLineEdit, QStyle, QVBoxLayout, QWidget, QTabWidget,
+    QPushButton, QListWidget, QTableWidget
 )
-from PyQt6.QtGui import QScreen, QPainter, QColor, QPen, QFont, QIntValidator, QPixmap, QIcon
-from PyQt6.QtCore import Qt, QRectF, QTimer, QSize, QPoint
 from PyQt6.QtSvg import QSvgRenderer
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtWebEngineCore import QWebEngineSettings
 from history_graph import HistoryGraph
 
 SERVER_BASE_URL = "http://201.23.72.236:5000"
@@ -41,99 +46,75 @@ def recolor_svg_to_pixmap(svg_path: str, color: QColor, size: QSize) -> QPixmap:
         return QPixmap()
 
 class LoginDialog(QDialog):
+    # This class is unchanged
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Login")
         self.setModal(True)
         self.setMinimumWidth(400)
         self.successful_username = None
-
-        # --- MAKE WINDOW FRAMELESS ---
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.old_pos = None
-        
-        # --- CUSTOM TITLE BAR ---
         self.title_bar = QWidget()
         self.title_bar.setObjectName("title_bar")
         self.title_bar.setFixedHeight(35)
         title_bar_layout = QHBoxLayout(self.title_bar)
         title_bar_layout.setContentsMargins(10, 0, 0, 0)
-
         app_icon_color = QColor("#0078d7")
         colored_pixmap = recolor_svg_to_pixmap("data/icon.svg", app_icon_color, QSize(20, 20))
-
         self.icon_label = QLabel()
         self.icon_label.setFixedSize(20, 20)
         self.icon_label.setScaledContents(True)
         self.icon_label.setPixmap(colored_pixmap)
-        
         title_label = QLabel('Login to hourGlass')
         title_label.setObjectName("title_label")
-
         button_icon_color = QColor("white")
         style = QApplication.style()
-
         self.minimize_button = QPushButton()
         self.minimize_button.setObjectName("minimize_button")
         self.minimize_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton), button_icon_color))
-
         self.close_button = QPushButton()
         self.close_button.setObjectName("close_button")
         self.close_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton), button_icon_color))
-
         title_bar_layout.addWidget(self.icon_label)
         title_bar_layout.addWidget(title_label)
         title_bar_layout.addStretch()
         title_bar_layout.addWidget(self.minimize_button)
         title_bar_layout.addWidget(self.close_button)
-
         self.minimize_button.setFixedSize(32, 32)
         self.close_button.setFixedSize(32, 32)
         self.minimize_button.setIconSize(QSize(16, 16))
         self.close_button.setIconSize(QSize(16, 16))
-        
-        # --- LOGIN FORM WIDGETS ---
         login_title_label = QLabel("Bem-Vindo ao hourClass!")
         login_title_label.setObjectName("login_title")
-
         self.username_edit = QLineEdit()
         self.username_edit.setPlaceholderText("Digite seu usuário")
         self.password_edit = QLineEdit()
         self.password_edit.setPlaceholderText("Digite sua senha")
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
-
         self.show_password_checkbox = QCheckBox("Mostrar Senha")
-
         self.create_user_button = QPushButton("Criar Novo Usuário")
         self.login_button = QPushButton("Entrar")
         self.login_button.setObjectName("primary_button")
         self.cancel_button = QPushButton("Cancelar")
-        
         self.error_label = QLabel("")
         self.error_label.setStyleSheet("color: #ff5555;")
         self.error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # --- LAYOUT SETUP ---
         form_layout = QFormLayout()
         form_layout.addRow("Usuário:", self.username_edit)
         form_layout.addRow("Senha:", self.password_edit)
-
         checkbox_layout = QHBoxLayout()
         checkbox_layout.addStretch()
         checkbox_layout.addWidget(self.show_password_checkbox)
-
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.create_user_button)
         button_layout.addStretch()
         button_layout.addWidget(self.cancel_button)
         button_layout.addWidget(self.login_button)
-
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
-        
         main_layout.addWidget(self.title_bar)
-        
         content_layout = QVBoxLayout()
         content_layout.setSpacing(15)
         content_layout.setContentsMargins(20, 20, 20, 20)
@@ -143,25 +124,19 @@ class LoginDialog(QDialog):
         content_layout.addWidget(self.error_label)
         content_layout.addStretch()
         content_layout.addLayout(button_layout)
-        
         main_layout.addLayout(content_layout)
-
-        # --- SIGNAL CONNECTIONS ---
         self.create_user_button.clicked.connect(self.show_register_dialog)
         self.login_button.clicked.connect(self.handle_login)
         self.close_button.clicked.connect(self.reject)
         self.minimize_button.clicked.connect(self.showMinimized)
         self.show_password_checkbox.toggled.connect(self.toggle_password_visibility)
         self.password_edit.returnPressed.connect(self.login_button.click)
-
     def show_register_dialog(self):
         register_dialog = RegisterDialog(self)
         register_dialog.exec()
-
     def handle_login(self):
         username = self.username_edit.text()
         password = self.password_edit.text()
-        
         server_url = f"{SERVER_BASE_URL}/login"
         payload = {'username': username, 'password': password}
         try:
@@ -182,72 +157,55 @@ class LoginDialog(QDialog):
             self.error_label.setText("Erro: A conexão demorou para responder.")
         finally:
             self.login_button.setEnabled(True)
-
     def toggle_password_visibility(self, checked):
-        """Toggles the visibility of the password field."""
         if checked:
             self.password_edit.setEchoMode(QLineEdit.EchoMode.Normal)
         else:
             self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
-
-    # --- DRAGGING FUNCTIONS ---
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and self.title_bar.underMouse():
             self.old_pos = event.globalPosition().toPoint()
-
     def mouseMoveEvent(self, event):
         if self.old_pos:
             delta = QPoint(event.globalPosition().toPoint() - self.old_pos)
             self.move(self.x() + delta.x(), self.y() + delta.y())
             self.old_pos = event.globalPosition().toPoint()
-
     def mouseReleaseEvent(self, event):
         self.old_pos = None
 
 class RegisterDialog(QDialog):
+    # This class is unchanged
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Criar Novo Usuário")
         self.setModal(True)
         self.setMinimumWidth(350)
-
-        # --- MAKE WINDOW FRAMELESS ---
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.old_pos = None
-
-        # --- CUSTOM TITLE BAR ---
         self.title_bar = QWidget()
         self.title_bar.setObjectName("title_bar")
         self.title_bar.setFixedHeight(35)
         title_bar_layout = QHBoxLayout(self.title_bar)
         title_bar_layout.setContentsMargins(10, 0, 0, 0)
-        
         app_icon_color = QColor("#0078d7")
         colored_pixmap = recolor_svg_to_pixmap("data/icon.svg", app_icon_color, QSize(20, 20))
-        
         self.icon_label = QLabel()
         self.icon_label.setFixedSize(20, 20)
         self.icon_label.setScaledContents(True)
         self.icon_label.setPixmap(colored_pixmap)
-        
         title_label = QLabel('Register User')
         title_label.setObjectName("title_label")
-
         button_icon_color = QColor("white")
         style = QApplication.style()
         self.close_button = QPushButton()
         self.close_button.setObjectName("close_button")
         self.close_button.setIcon(recolor_icon(style.standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton), button_icon_color))
-
         title_bar_layout.addWidget(self.icon_label)
         title_bar_layout.addWidget(title_label)
         title_bar_layout.addStretch()
         title_bar_layout.addWidget(self.close_button)
-        
         self.close_button.setFixedSize(32, 32)
         self.close_button.setIconSize(QSize(16, 16))
-
-        # --- REGISTER FORM WIDGETS ---
         self.username_edit = QLineEdit()
         self.password_edit = QLineEdit()
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
@@ -257,37 +215,27 @@ class RegisterDialog(QDialog):
         self.cancel_button = QPushButton("Cancelar")
         self.status_label = QLabel("")
         self.status_label.setStyleSheet("color: #ff5555;")
-        
-        # --- LAYOUT SETUP ---
         form_layout = QFormLayout()
         form_layout.addRow("Usuário:", self.username_edit)
         form_layout.addRow("Senha:", self.password_edit)
         form_layout.addRow("Confirmar Senha:", self.confirm_password_edit)
-        
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         button_layout.addWidget(self.register_button)
         button_layout.addWidget(self.cancel_button)
-        
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
-        
         main_layout.addWidget(self.title_bar)
-        
         content_layout = QVBoxLayout()
         content_layout.setContentsMargins(20, 20, 20, 20)
         content_layout.addLayout(form_layout)
         content_layout.addWidget(self.status_label)
         content_layout.addLayout(button_layout)
-        
         main_layout.addLayout(content_layout)
-
-        # --- SIGNAL CONNECTIONS ---
         self.register_button.clicked.connect(self.handle_register)
         self.cancel_button.clicked.connect(self.reject)
         self.close_button.clicked.connect(self.reject)
-
     def handle_register(self):
         username = self.username_edit.text()
         password = self.password_edit.text()
@@ -320,18 +268,14 @@ class RegisterDialog(QDialog):
             self.status_label.setText("Erro de conexão com o servidor.")
         finally:
             self.register_button.setEnabled(True)
-
-    # --- DRAGGING FUNCTIONS ---
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and self.title_bar.underMouse():
             self.old_pos = event.globalPosition().toPoint()
-
     def mouseMoveEvent(self, event):
         if self.old_pos:
             delta = QPoint(event.globalPosition().toPoint() - self.old_pos)
             self.move(self.x() + delta.x(), self.y() + delta.y())
             self.old_pos = event.globalPosition().toPoint()
-
     def mouseReleaseEvent(self, event):
         self.old_pos = None
 
@@ -340,20 +284,25 @@ class CircularTimerWidget(QWidget):
         super().__init__(parent)
         self.total_seconds = 0
         self.current_seconds_float = 0.0
-        self.rotation_angle = 0
+        self.page_loaded = False # ADDED: Flag to track if the HTML is ready
 
-        self.start_color = QColor("#3C3C3C")
-        self.end_color = QColor("#0078d7")
-        try:
-            self.base_hourglass_icon = QIcon("data/hourglass.svg")
-        except Exception as e:
-            print(f"Could not load hourglass.svg: {e}")
-            self.base_hourglass_icon = None
-        
-        self.animation_timer = QTimer(self)
-        self.animation_timer.timeout.connect(self._update_rotation)
-        self.animation_timer.start(50)
+        # --- Create and configure the WebEngine view ---
+        self.web_view = QWebEngineView(self)
+        self.web_view.settings().setAttribute(QWebEngineSettings.WebAttribute.ShowScrollBars, False)
+        self.web_view.page().setBackgroundColor(Qt.GlobalColor.transparent)
 
+        # --- Load the local HTML player file ---
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.dirname(os.path.abspath(__file__))
+        html_path = os.path.join(base_path, "lottie_player.html")
+        self.web_view.setUrl(QUrl.fromLocalFile(html_path))
+
+        self.web_view.loadFinished.connect(self._on_load_finished)
+        self.web_view.hide()
+
+        # --- Input fields layout ---
         self.hour_input = QLineEdit("00")
         self.hour_input.setObjectName("time_input")
         self.hour_input.setValidator(QIntValidator(0, 99))
@@ -382,21 +331,82 @@ class CircularTimerWidget(QWidget):
         main_layout.addStretch()
         self.input_widgets = [self.hour_input, self.minute_input, self.second_input, colon1, colon2]
 
-    def _update_rotation(self):
-        if not self.hour_input.isVisible():
-            self.rotation_angle = (self.rotation_angle + 3) % 360
-            self.update()
+        # DEPOIS
+    # In gui.py, inside the CircularTimerWidget class
+    def _on_load_finished(self, success):
+        if not success:
+            print("Error: Could not load lottie_player.html")
+            return
+        
+        self.page_loaded = True
+        
+        try:
+            json_path_abs = os.path.abspath("data/hourglass.json")
+            with open(json_path_abs, 'r', encoding='utf-8') as f:
+                animation_data = json.load(f)
+                
+            json_string_for_js = json.dumps(animation_data)
+            
+            self.web_view.page().runJavaScript(f"loadAnimation(`{json_string_for_js}`);")
+
+        except Exception as e:
+            print(f"Error loading or passing animation data: {e}")
+
+        self.resizeEvent(None)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        
+        if not self.page_loaded: return
+
+        rect = self.rect()
+        side = min(rect.width(), rect.height())
+        
+        # ESTA É A LINHA QUE CONTROLA O TAMANHO
+        margin = 15
+        
+        drawing_rect = QRectF((rect.width() - side) / 2 + margin, (rect.height() - side) / 2 + margin, side - 2 * margin, side - 2 * margin)
+        
+        self.web_view.setGeometry(drawing_rect.toRect())
+        self.web_view.page().runJavaScript("resizeAnimation();")
 
     def set_time(self, total_seconds, current_seconds_float):
         self.total_seconds = total_seconds
         self.current_seconds_float = current_seconds_float
+
+        if not self.page_loaded: return # ADDED: Guard clause
+        
+        if not self.hour_input.isVisible():
+            current_seconds_int = int(math.ceil(self.current_seconds_float))
+            hours = current_seconds_int // 3600
+            minutes = (current_seconds_int % 3600) // 60
+            seconds = current_seconds_int % 60
+            
+            if self.total_seconds >= 3600:
+                time_text = f"{hours:02}:{minutes:02}:{seconds:02}"
+                font_size = 30
+            else:
+                time_text = f"{minutes:02}:{seconds:02}"
+                font_size = 40
+            
+            self.web_view.page().runJavaScript(f"updateText('{time_text}', {font_size});")
+        
         self.update()
 
     def set_inputs_visible(self, visible):
+        if not self.page_loaded: return # ADDED: Guard clause
+        
         for widget in self.input_widgets:
             widget.setVisible(visible)
+        
         if visible:
-            self.update()
+            self.web_view.hide()
+            self.web_view.page().runJavaScript("stopAnimation();")
+            self.web_view.page().runJavaScript("updateText('', 0);")
+        else:
+            self.web_view.show()
+            self.web_view.page().runJavaScript("playAnimation();")
+        self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -406,69 +416,34 @@ class CircularTimerWidget(QWidget):
         margin = 15
         drawing_rect = QRectF((rect.width() - side) / 2 + margin, (rect.height() - side) / 2 + margin, side - 2 * margin, side - 2 * margin)
         
-        bg_pen = QPen(QColor("#3c3c3c"), 12, Qt.PenStyle.SolidLine)
-        painter.setPen(bg_pen)
+        painter.setPen(QPen(QColor("#3c3c3c"), 12, Qt.PenStyle.SolidLine))
         painter.drawEllipse(drawing_rect)
 
-        progress_ratio = 0
-        if self.total_seconds > 0:
-            progress_pen = QPen(QColor("#0078d7"), 14, Qt.PenStyle.SolidLine)
-            painter.setPen(progress_pen)
-            elapsed_seconds = self.total_seconds - self.current_seconds_float
-            progress_ratio = elapsed_seconds / self.total_seconds
+        if self.total_seconds > 0 and not self.hour_input.isVisible():
+            painter.setPen(QPen(QColor("#0078d7"), 14, Qt.PenStyle.SolidLine))
+            progress_ratio = (self.total_seconds - self.current_seconds_float) / self.total_seconds
             arc_angle = progress_ratio * 360
             start_angle = 90 * 16
             span_angle = -int(arc_angle * 16)
             painter.drawArc(drawing_rect, start_angle, span_angle)
 
-        if self.base_hourglass_icon:
-            r1, g1, b1, _ = self.start_color.getRgb()
-            r2, g2, b2, _ = self.end_color.getRgb()
-            r = r1 + (r2 - r1) * progress_ratio
-            g = g1 + (g2 - g1) * progress_ratio
-            b = b1 + (b2 - b1) * progress_ratio
-            current_color = QColor(int(r), int(g), int(b))
-            
-            current_colored_icon = recolor_icon(self.base_hourglass_icon, current_color)
-            current_pixmap = current_colored_icon.pixmap(QSize(256, 256))
-
-            painter.save()
-            angle_to_use = self.rotation_angle if not self.hour_input.isVisible() else 0
-            icon_size = drawing_rect.width() * 0.8
-            icon_rect = QRectF(-icon_size / 2, -icon_size / 2, icon_size, icon_size)
-            painter.translate(drawing_rect.center())
-            painter.rotate(angle_to_use)
-            painter.drawPixmap(icon_rect.toRect(), current_pixmap)
-            painter.restore()
-        
-        if not self.hour_input.isVisible():
-            current_seconds_int = int(self.current_seconds_float) + 1 if self.current_seconds_float > 0 else 0
-            hours = current_seconds_int // 3600
-            minutes = (current_seconds_int % 3600) // 60
-            seconds = current_seconds_int % 60
-            if self.total_seconds >= 3600:
-                time_text = f"{hours:02}:{minutes:02}:{seconds:02}"
-                font_size = 30
-            else:
-                time_text = f"{minutes:02}:{seconds:02}"
-                font_size = 40
-            font = QFont("Segoe UI", font_size)
-            font.setBold(True)
-            painter.setFont(font)
-            painter.setPen(QColor("#f0f0f0"))
-            painter.drawText(drawing_rect, Qt.AlignmentFlag.AlignCenter, time_text)
-
-# gui.py -> Dentro da classe Ui_BlockerApp
 class Ui_BlockerApp(object):
     def setupUi(self, main_window):
         main_window.setWindowTitle('hourClass')
-        screen = QScreen.availableGeometry(QApplication.primaryScreen())
-        width = int(screen.width() * 0.4)
-        height = int(screen.height() * 0.6)
-        main_window.setGeometry(screen.x(), screen.y(), width, height)
-        self.main_layout = QVBoxLayout(main_window)
+        primary_screen = QApplication.primaryScreen()
+        if primary_screen:
+            screen_geometry = primary_screen.availableGeometry()
+            width = int(screen_geometry.width() * 0.4)
+            height = int(screen_geometry.height() * 0.6)
+            main_window.setGeometry(screen_geometry.x(), screen_geometry.y(), width, height)
+        
+        self.central_widget = QWidget(main_window) # Create a central widget
+        main_window.setCentralWidget(self.central_widget) # Set it
+
+        self.main_layout = QVBoxLayout(self.central_widget) # Use the central widget's layout
         self.main_layout.setContentsMargins(1, 1, 1, 1)
         self.main_layout.setSpacing(0)
+
         self.title_bar = QWidget()
         self.title_bar.setObjectName("title_bar")
         self.title_bar.setFixedHeight(35)
@@ -531,7 +506,7 @@ class Ui_BlockerApp(object):
         timer_page_layout = QVBoxLayout(timer_page)
         self.circular_timer = CircularTimerWidget()
         timer_button_layout = QHBoxLayout()
-        # --- NEW: Synced Session Controls ---
+        # --- Synced Session Controls ---
         line = QWidget(); line.setFixedHeight(1); line.setStyleSheet("background-color: #555;")
         timer_page_layout.addWidget(line)
 
@@ -566,7 +541,6 @@ class Ui_BlockerApp(object):
         list_page_layout.setContentsMargins(0, 10, 0, 0)
         list_page_layout.setSpacing(10)
         
-        # --- SEÇÃO DE BLOQUEIO DE URL ---
         list_page_layout.addWidget(QLabel('Enter domain to block:'))
         add_url_layout = QHBoxLayout()
         self.url_input = QLineEdit()
@@ -585,7 +559,6 @@ class Ui_BlockerApp(object):
         line.setStyleSheet("background-color: #555;")
         list_page_layout.addWidget(line)
         
-        # --- SEÇÃO DE BLOQUEIO DE APP ---
         list_page_layout.addWidget(QLabel('Enter .exe file to block:'))
         add_app_layout = QHBoxLayout()
         self.app_input = QLineEdit()
@@ -611,7 +584,6 @@ class Ui_BlockerApp(object):
         history_layout.addWidget(self.history_graph)
         self.tabs.addTab(history_tab, "Estatísticas")
 
-        # --- INÍCIO DA CORREÇÃO: Aba de Rank ---
         rank_tab = QWidget()
         rank_layout = QVBoxLayout(rank_tab)
         rank_layout.setContentsMargins(0, 10, 0, 0)
@@ -623,15 +595,3 @@ class Ui_BlockerApp(object):
         content_layout.addWidget(self.tabs)
         self.status_label = QLabel('Status: Pronto')
         content_layout.addWidget(self.status_label)
-        # --- FIM DA CORREÇÃO ---
-        
-        content_layout.addWidget(self.tabs)
-        self.status_label = QLabel('Status: Ready')
-        content_layout.addWidget(self.status_label)
-
-        # As linhas abaixo parecem ser para uma funcionalidade diferente
-        # e podem ser mantidas ou removidas dependendo do seu objetivo.
-        main_window.room_input = self.room_input
-        main_window.connect_button = self.connect_button
-        main_window.disconnect_button = self.disconnect_button
-        main_window.sync_status_label = self.sync_status_label

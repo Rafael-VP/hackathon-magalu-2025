@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime
 from urllib.parse import urlparse
 from PyQt6.QtWidgets import (QApplication, QWidget, QStyle, QDialog, QLineEdit, 
-                             QPushButton, QLabel, QFormLayout, QHBoxLayout, QVBoxLayout, QTableWidgetItem)
+                             QPushButton, QLabel, QFormLayout, QHBoxLayout, QVBoxLayout, QTableWidgetItem, QMainWindow)
 from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QDateTime, QStandardPaths
 from PyQt6.QtGui import QIcon, QColor, QPixmap, QPainter
 from PyQt6.QtSvg import QSvgRenderer
@@ -90,7 +90,7 @@ QTabBar { qproperty-drawBase: 0; }
 
 # --- CLASSE PRINCIPAL DA APLICAÇÃO ---
 
-class BlockerApp(QWidget):
+class BlockerApp(QMainWindow):
     def __init__(self, username: str):
         super().__init__()
         # Armazena o usuário logado para uso futuro
@@ -670,17 +670,18 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     app.setStyleSheet(DARK_THEME)
 
-    login_dialog = LoginDialog()
+    #login_dialog = LoginDialog()
     
-    if login_dialog.exec() == QDialog.DialogCode.Accepted:
+    #if login_dialog.exec() == QDialog.DialogCode.Accepted:
         # Pass the username from the dialog to the main app
-        main_app = BlockerApp(login_dialog.successful_username)
+        #main_app = BlockerApp(login_dialog.successful_username)
         
         # Register cleanup function to be called on exit
-        atexit.register(main_app.cleanup_all_blocks)
+        #atexit.register(main_app.cleanup_all_blocks)
         
-        main_app.show()
-        sys.exit(app.exec())
-    else:
+        #main_app.show()
+        #sys.exit(app.exec())
+    #else:
         # If login is canceled or fails, the program exits
-        sys.exit(0)
+    BlockerApp("nomequalquer").show()
+    sys.exit(app.exec())

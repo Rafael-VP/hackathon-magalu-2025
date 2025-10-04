@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="./lottie.min.js"></script>
+    <style>
+        /* Basic reset to remove default browser spacing */
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden; /* Prevents scrollbars */
+            background-color: transparent; /* Ensures transparency */
+        }
+
+        /* Main container for the animation and text */
+        #main-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* Container that will hold the Lottie animation */
+        #lottie-animation {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Style for the timer text overlay */
+        #timer-text {
+            position: absolute;
+            color: #f0f0f0;
+            font-family: "Segoe UI", sans-serif;
+            font-weight: bold;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="main-container">
+        <div id="lottie-animation"></div>
+        <div id="timer-text"></div>
+    </div>
+
+    <script>
+        // --- START OF CORRECTION ---
+        // Wait until the entire HTML page is loaded before running the script
+        document.addEventListener('DOMContentLoaded', () => {
+            let anim;
+            const animationContainer = document.getElementById('lottie-animation');
+            const textOverlay = document.getElementById('timer-text');
+
+            // Make functions available globally so Python can call them
+            window.loadAnimation = function(jsonDataString) {
+                if (anim) {
+                    anim.destroy();
+                }
+                const animationData = JSON.parse(jsonDataString);
+                anim = lottie.loadAnimation({
+                    container: animationContainer,
+                    renderer: 'svg',
+                    loop: true,
+                    autoplay: false,
+                    animationData: animationData,
+                    rendererSettings: {
+                        preserveAspectRatio: 'xMidYMid meet'
+                    }
+                });
+            };
+
+            window.playAnimation = function() { if (anim) anim.play(); };
+            window.stopAnimation = function() { if (anim) anim.stop(); };
+            window.resizeAnimation = function() { if (anim) anim.resize(); };
+            
+            window.updateText = function(newText, fontSize) {
+                // Safety check to prevent errors
+                if (textOverlay) {
+                    textOverlay.innerText = newText;
+                    textOverlay.style.fontSize = fontSize + 'px';
+                }
+            };
+        });
+        // --- END OF CORRECTION ---
+    </script>
+</body>
+</html>
